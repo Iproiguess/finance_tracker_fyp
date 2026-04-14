@@ -121,6 +121,10 @@ function App() {
 
   useEffect(() => {
     const handleInitialSession = async () => {
+      // Get existing session first
+      const { data: { session: existingSession } } = await supabase.auth.getSession();
+      setSession(existingSession);
+      
       const rawHash = window.location.hash;
       const recoveryRequested = rawHash && rawHash.includes('type=recovery');
 
