@@ -1,0 +1,806 @@
+import React, { useMemo, useState, useEffect } from 'react';
+import { useBudgets } from '../hooks/usebudgets';
+import { useTransactions } from '../hooks/usetransactions';
+import { useCategories } from '../hooks/usecategories';
+import SummaryCards from './SummaryCards';
+import { formatCurrency } from './styles/budgetSummaryStyles';
+import { styles, getRemainingColor } from './styles/analysisStyles';
+import { getCurrentSpendingByBudget, MONTH_NAMES } from './utils/budgetUtils';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { ScenarioSimulateButton } from './ScenarioSimulateButton';
+import { ScenarioSimulateModal } from './ScenarioSimulateModal';
+
+
+export function Analysis() {
+  const { budgets, loading: budgetsLoading } = useBudgets();
+  const { transactions, loading: transactionsLoading } = useTransactions();
+  const { categories, loading: categoriesLoading } = useCategories();
+  const [selectedBudgetIds, setSelectedBudgetIds] = useState(new Set());
+  const [showScenarioModal, setShowScenarioModal] = useState(false);
+  const [simulationResult, setSimulationResult] = useState(null);
+  // Simulation mode detection
+  const isSimulation = !!simulationResult;
+
+
+  // filteredBudgets must be defined before selectedCategoryIds
+  const filteredBudgets = useMemo(() => {
+    if (selectedBudgetIds.size === 0) return budgets;
+    return budgets.filter(b => selectedBudgetIds.has(b.budget_id));
+  }, [budgets, selectedBudgetIds]);
+
+  // Compute selectedCategoryIds from selected budgets
+  const selectedCategoryIds = useMemo(() => {
+    const ids = new Set();
+    filteredBudgets.forEach(b => (b.category_ids || []).forEach(id => ids.add(id)));
+    return Array.from(ids);
+  }, [filteredBudgets]);
+
+  // Sync selected budget with hash (e.g., #budget-123)
+  useEffect(() => {
+    const syncBudgetFromHash = () => {
+      const hash = window.location.hash;
+      if (hash.startsWith('#budget-')) {
+        const budgetId = hash.replace('#budget-', '');
+        if (budgets.some(b => String(b.budget_id) === budgetId)) {
+          setSelectedBudgetIds(new Set([budgetId]));
+        }
+      }
+    };
+    window.addEventListener('hashchange', syncBudgetFromHash);
+    syncBudgetFromHash(); // Run on mount
+    return () => window.removeEventListener('hashchange', syncBudgetFromHash);
+  }, [budgets]);
+
+  const loading = budgetsLoading || transactionsLoading || categoriesLoading;
+
+  const toggleBudgetSelection = (budgetId) => {
+    const newSet = new Set(selectedBudgetIds);
+    if (newSet.has(budgetId)) {
+      newSet.delete(budgetId);
+    } else {
+      newSet.add(budgetId);
+    }
+    setSelectedBudgetIds(newSet);
+  };
+
+  const totalBudget = useMemo(() => {
+    return filteredBudgets.reduce((sum, b) => sum + parseFloat(b.monthly_limit || 0), 0);
+  }, [filteredBudgets]);
+
+  const totalSpent = useMemo(() => {
+    if (isSimulation && simulationResult && simulationResult.categories) {
+      return simulationResult.categories.reduce((sum, c) => {
+        let amount = 0;
+        if (simulationResult.simulateType === 'expense' || simulationResult.simulateType === 'both') {
+          amount += c.simulatedExpense;
+        }
+        if (simulationResult.simulateType === 'income' || simulationResult.simulateType === 'both') {
+          amount += c.simulatedIncome;
+        }
+        return sum + amount;
+      }, 0);
+    }
+    return filteredBudgets.reduce((sum, b) => {
+      return sum + getCurrentSpendingByBudget(b, transactions);
+    }, 0);
+  }, [filteredBudgets, transactions, isSimulation, simulationResult]);
+
+  const totalRemaining = totalBudget - totalSpent;
+
+  const monthlyTableData = useMemo(() => {
+    if (isSimulation && simulationResult.categories) {
+      return filteredBudgets.map((budget) => {
+        const budgetCategoryNames = (budget.category_ids || [])
+          .map(id => {
+            const cat = categories.find(c => c.category_id === id);
+            return cat ? cat.category_name : null;
+          })
+          .filter(Boolean);
+        
+        const budgetRelevantSimCats = simulationResult.categories.filter(cat =>
+          budgetCategoryNames.includes(cat.categoryName)
+        );
+        
+        let spent = 0;
+        if (simulationResult.simulateType === 'expense' || simulationResult.simulateType === 'both') {
+          // Use simulated expenses
+          spent = budgetRelevantSimCats.reduce((sum, cat) => sum + cat.simulatedExpense, 0);
+        } else {
+          // Simulating income only - use real expenses
+          const budgetCategoryIds = budget.category_ids || [];
+          spent = transactions
+            .filter(tx => budgetCategoryIds.includes(tx.category_id) && tx.type === 'expense')
+            .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+        }
+        
+        const limit = parseFloat(budget.monthly_limit || 0);
+        const remaining = limit - spent;
+        const usagePercent = limit > 0 ? (spent/limit)*100 : 0;
+        const usage = usagePercent >= 100 ? Math.min(usagePercent, 999).toFixed(2) : usagePercent.toFixed(1);
+        const period = budget.month ? `${MONTH_NAMES[budget.month - 1]} ${budget.year}` : `${budget.year}`;
+        return {
+          id: budget.budget_id,
+          name: budget.budget_name || 'Unnamed budget',
+          period,
+          limit,
+          spent,
+          remaining,
+          usage,
+        };
+      });
+    }
+    return filteredBudgets.map((budget) => {
+      const spent = getCurrentSpendingByBudget(budget, transactions);
+      const limit = parseFloat(budget.monthly_limit || 0);
+      const remaining = limit - spent;
+      const usagePercent = limit > 0 ? (spent/limit)*100 : 0;
+      const usage = usagePercent >= 100 ? Math.min(usagePercent, 999).toFixed(2) : usagePercent.toFixed(1);
+      const period = budget.month ? `${MONTH_NAMES[budget.month - 1]} ${budget.year}` : `${budget.year}`;
+      return {
+        id: budget.budget_id,
+        name: budget.budget_name || 'Unnamed budget',
+        period,
+        limit,
+        spent,
+        remaining,
+        usage,
+      };
+    });
+  }, [filteredBudgets, transactions, isSimulation, simulationResult, categories]);
+
+
+  // Only include transactions in selected budgets' categories
+  const filteredTransactions = useMemo(() => {
+    if (selectedCategoryIds.length === 0) return transactions;
+    return transactions.filter(tx => selectedCategoryIds.includes(tx.category_id));
+  }, [transactions, selectedCategoryIds]);
+
+  // Category chart data for bar chart
+  const categoryChartData = useMemo(() => {
+    // Only include categories in selected budgets
+    const relevantCategories = categories.filter(cat => selectedCategoryIds.includes(cat.category_id));
+    
+    if (isSimulation && simulationResult && simulationResult.categories) {
+      // Use simulated data with proper expense/income handling
+      return relevantCategories.map(cat => {
+        const simCat = simulationResult.categories.find(s => s.categoryName === cat.category_name);
+        
+        let spent = 0;
+        let income = 0;
+        
+        if (simulationResult.simulateType === 'expense' || simulationResult.simulateType === 'both') {
+          // Use simulated expense
+          spent = simCat ? simCat.simulatedExpense : 0;
+        } else {
+          // Simulating only income - show real expenses
+          const catTxs = filteredTransactions.filter(tx => tx.category_id === cat.category_id);
+          spent = catTxs.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+        }
+        
+        if (simulationResult.simulateType === 'income' || simulationResult.simulateType === 'both') {
+          // Use simulated income
+          income = simCat ? simCat.simulatedIncome : 0;
+        } else {
+          // Simulating only expenses - show real income
+          const catTxs = filteredTransactions.filter(tx => tx.category_id === cat.category_id);
+          income = catTxs.filter(tx => tx.type === 'income').reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+        }
+        
+        return {
+          name: cat.category_name,
+          spent,
+          income,
+        };
+      })
+        .sort((a, b) => b.spent - a.spent);
+    }
+
+    // Real data
+    return relevantCategories.map(cat => {
+      const catTxs = filteredTransactions.filter(tx => tx.category_id === cat.category_id);
+      const spent = catTxs.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+      const income = catTxs.filter(tx => tx.type === 'income').reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+      return {
+        name: cat.category_name,
+        spent,
+        income,
+      };
+    }).sort((a, b) => b.spent - a.spent); // Sort by spent descending
+  }, [categories, selectedCategoryIds, filteredTransactions, isSimulation, simulationResult]);
+
+  // Monthly spending trend data for line chart (last 12 months)
+  const monthlyTrendData = useMemo(() => {
+    const now = new Date();
+    const months = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
+    }
+
+    // Build category simulation ratios if in simulation mode
+    let expenseSimulationMap = {};
+    let incomeSimulationMap = {};
+    if (isSimulation && simulationResult && simulationResult.categories) {
+      simulationResult.categories.forEach(simCat => {
+        const expenseRatio = simCat.currentExpense > 0 ? simCat.simulatedExpense / simCat.currentExpense : 1;
+        const incomeRatio = simCat.currentIncome > 0 ? simCat.simulatedIncome / simCat.currentIncome : 1;
+        expenseSimulationMap[simCat.categoryName] = expenseRatio;
+        incomeSimulationMap[simCat.categoryName] = incomeRatio;
+      });
+    }
+
+    return months.map(({ year, month }) => {
+      const monthTxs = filteredTransactions.filter(tx => {
+        const txDate = new Date(tx.date);
+        return txDate.getFullYear() === year && txDate.getMonth() + 1 === month;
+      });
+
+      let spent = 0;
+      let income = 0;
+
+      if (isSimulation && (Object.keys(expenseSimulationMap).length > 0 || Object.keys(incomeSimulationMap).length > 0)) {
+        // Apply simulated ratios per category based on simulateType
+        monthTxs.forEach(tx => {
+          const catName = categories.find(c => c.category_id === tx.category_id)?.category_name;
+          const txAmount = parseFloat(tx.amount || 0);
+          
+          if (tx.type === 'expense') {
+            if (simulationResult.simulateType === 'expense' || simulationResult.simulateType === 'both') {
+              const ratio = expenseSimulationMap[catName] || 1;
+              spent += txAmount * ratio;
+            } else {
+              // Simulating income only - use real expenses
+              spent += txAmount;
+            }
+          }
+          
+          if (tx.type === 'income') {
+            if (simulationResult.simulateType === 'income' || simulationResult.simulateType === 'both') {
+              const ratio = incomeSimulationMap[catName] || 1;
+              income += txAmount * ratio;
+            } else {
+              // Simulating expenses only - use real income
+              income += txAmount;
+            }
+          }
+        });
+      } else {
+        // Normal (non-simulated) calculation
+        spent = monthTxs.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+        income = monthTxs.filter(tx => tx.type === 'income').reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+      }
+
+      return {
+        month: `${MONTH_NAMES[month - 1]} ${year}`,
+        spent,
+        income,
+      };
+    });
+  }, [filteredTransactions, isSimulation, simulationResult, categories]);
+
+  // Chart data for monthly spending trend (last 12 months)
+
+// Simulated summary values
+const simulatedSpent = useMemo(() => {
+  if (isSimulation && simulationResult && simulationResult.categories) {
+    const selectedCatNames = categories.filter(c => selectedCategoryIds.includes(c.category_id)).map(c => c.category_name);
+    return simulationResult.categories
+      .filter(cat => selectedCatNames.includes(cat.categoryName))
+      .reduce((sum, cat) => {
+        let amount = 0;
+        if (simulationResult.simulateType === 'expense' || simulationResult.simulateType === 'both') {
+          amount += cat.simulatedExpense;
+        }
+        if (simulationResult.simulateType === 'income' || simulationResult.simulateType === 'both') {
+          amount += cat.simulatedIncome;
+        }
+        return sum + amount;
+      }, 0);
+  }
+  return null;
+}, [isSimulation, simulationResult, categories, selectedCategoryIds]);
+
+const simulatedIncome = useMemo(() => {
+  if (isSimulation && simulationResult && simulationResult.categories) {
+    const selectedCatNames = categories.filter(c => selectedCategoryIds.includes(c.category_id)).map(c => c.category_name);
+    return simulationResult.categories
+      .filter(cat => selectedCatNames.includes(cat.categoryName))
+      .reduce((sum, cat) => {
+        if (simulationResult.simulateType === 'income' || simulationResult.simulateType === 'both') {
+          return sum + cat.simulatedIncome;
+        }
+        return sum;
+      }, 0);
+  }
+  return null;
+}, [isSimulation, simulationResult, categories, selectedCategoryIds]);
+
+const simulatedExpense = useMemo(() => {
+  if (isSimulation && simulationResult && simulationResult.categories) {
+    const selectedCatNames = categories.filter(c => selectedCategoryIds.includes(c.category_id)).map(c => c.category_name);
+    // If simulating expenses, use simulated values; otherwise use real expenses
+    if (simulationResult.simulateType === 'expense' || simulationResult.simulateType === 'both') {
+      return simulationResult.categories
+        .filter(cat => selectedCatNames.includes(cat.categoryName))
+        .reduce((sum, cat) => sum + cat.simulatedExpense, 0);
+    } else {
+      // Simulating income only - show real expenses
+      return filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+    }
+  }
+  return null;
+}, [isSimulation, simulationResult, categories, selectedCategoryIds, filteredTransactions]);
+
+const simulatedTransactionsCount = useMemo(() => {
+  if (isSimulation && simulationResult && simulationResult.categories) {
+    const selectedCatNames = categories.filter(c => selectedCategoryIds.includes(c.category_id)).map(c => c.category_name);
+    return simulationResult.categories.filter(cat => selectedCatNames.includes(cat.categoryName)).length;
+  }
+  return null;
+}, [isSimulation, simulationResult, categories, selectedCategoryIds]);
+
+const simulatedCategoriesCount = useMemo(() => {
+  if (isSimulation && simulationResult && simulationResult.categories) {
+    const selectedCatNames = categories.filter(c => selectedCategoryIds.includes(c.category_id)).map(c => c.category_name);
+    return simulationResult.categories.filter(cat => selectedCatNames.includes(cat.categoryName)).length;
+  }
+  return null;
+}, [isSimulation, simulationResult, categories, selectedCategoryIds]);
+
+const totalIncome = useMemo(() => {
+  return filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+}, [filteredTransactions]);
+
+const totalExpense = useMemo(() => {
+  return filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+}, [filteredTransactions]);
+
+  const summaryData = useMemo(() => {
+    if (isSimulation && (simulatedExpense !== null || simulatedIncome !== null)) {
+      return {
+        totalBudget,
+        totalSpent: simulatedExpense ?? 0,
+        totalIncome: simulatedIncome ?? 0,
+        transactionsCount: simulatedTransactionsCount ?? 0,
+        categoriesCount: simulatedCategoriesCount ?? 0,
+        netAmount: (simulatedIncome ?? 0) - (simulatedExpense ?? 0)
+      };
+    }
+    return {
+      totalBudget,
+      totalSpent: totalExpense,
+      totalIncome,
+      transactionsCount: filteredTransactions.length,
+      categoriesCount: selectedCategoryIds.length,
+      netAmount: totalIncome - totalExpense
+    };
+  }, [isSimulation, simulatedExpense, simulatedIncome, simulatedTransactionsCount, simulatedCategoriesCount, totalBudget, totalExpense, totalIncome, filteredTransactions.length, selectedCategoryIds.length]);
+
+  // Category summary for table (simulation-aware)
+  const categorySummary = useMemo(() => {
+    if (isSimulation && simulationResult && simulationResult.categories) {
+      // Use simulated data with proper handling for single-type simulations
+      return categories
+        .filter(cat => selectedCategoryIds.includes(cat.category_id))
+        .map(cat => {
+          const simCat = simulationResult.categories.find(s => s.categoryName === cat.category_name);
+          
+          let spent = 0;
+          let income = 0;
+          
+          if (simulationResult.simulateType === 'expense' || simulationResult.simulateType === 'both') {
+            spent = simCat ? simCat.simulatedExpense : 0;
+          } else {
+            // Simulating only income - show real expenses
+            const catTxs = filteredTransactions.filter(tx => tx.category_id === cat.category_id);
+            spent = catTxs.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+          }
+          
+          if (simulationResult.simulateType === 'income' || simulationResult.simulateType === 'both') {
+            income = simCat ? simCat.simulatedIncome : 0;
+          } else {
+            // Simulating only expenses - show real income
+            const catTxs = filteredTransactions.filter(tx => tx.category_id === cat.category_id);
+            income = catTxs.filter(tx => tx.type === 'income').reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+          }
+          
+          return {
+            category_id: cat.category_id,
+            category_name: cat.category_name,
+            spent,
+            income,
+          };
+        })
+        .sort((a, b) => b.spent - a.spent);
+    }
+    // Real data
+    return categories
+      .filter(cat => selectedCategoryIds.includes(cat.category_id))
+      .map(cat => {
+        const catTxs = filteredTransactions.filter(tx => tx.category_id === cat.category_id);
+        const spent = catTxs.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+        const income = catTxs.filter(tx => tx.type === 'income').reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+        return {
+          category_id: cat.category_id,
+          category_name: cat.category_name,
+          spent,
+          income,
+        };
+      })
+      .sort((a, b) => b.spent - a.spent);
+  }, [isSimulation, simulationResult, categories, selectedCategoryIds, filteredTransactions]);
+
+  // Colors for charts
+  const colors = ['#3498db', '#e74c3c', '#27ae60', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'];
+
+  if (loading) {
+    return <div style={styles.loadingText}>Loading analysis…</div>;
+  }
+
+  return (
+    <div style={styles.container}>
+      {/* Budget Selector Sidebar */}
+      <div style={styles.sidebar}>
+        <div style={styles.sidebarHeader}>
+          <h3 style={styles.sidebarTitle}>Budgets</h3>
+          <p style={styles.sidebarSubtitle}>
+            {selectedBudgetIds.size === 0 ? 'All' : `${selectedBudgetIds.size}`} selected
+          </p>
+        </div>
+
+        <div style={styles.budgetList}>
+          {budgets.length === 0 ? (
+            <div style={styles.emptyBudgetText}>No budgets created yet</div>
+          ) : (
+            budgets.map(budget => {
+              const spent = getCurrentSpendingByBudget(budget, transactions);
+              const limit = parseFloat(budget.monthly_limit || 0);
+              const isSelected = selectedBudgetIds.has(budget.budget_id);
+              const period = budget.month ? `${MONTH_NAMES[budget.month - 1]} ${budget.year}` : `${budget.year}`;
+
+              return (
+                <div
+                  key={budget.budget_id}
+                  onClick={() => toggleBudgetSelection(budget.budget_id)}
+                  style={styles.budgetItem(isSelected)}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#3d5a80';
+                    e.currentTarget.style.border = '2px solid #3498db';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(52, 152, 219, 0.15)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    const baseStyle = styles.budgetItem(isSelected);
+                    e.currentTarget.style.backgroundColor = baseStyle.backgroundColor;
+                    e.currentTarget.style.border = baseStyle.border;
+                    e.currentTarget.style.boxShadow = baseStyle.boxShadow;
+                    e.currentTarget.style.transform = baseStyle.transform;
+                  }}
+                  title={`Click to ${isSelected ? 'deselect' : 'select'} this budget`}
+                >
+                  <div style={styles.budgetItemHeader}>
+                    <span style={styles.budgetName}>{budget.budget_name || 'Unnamed'}</span>
+                  </div>
+                  <div style={styles.budgetPeriod}>{period}</div>
+                  <div style={styles.budgetAmount}>
+                    {formatCurrency(spent)} / {formatCurrency(limit)}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div style={styles.budgetListFooter}>
+          <button
+            onClick={() => setSelectedBudgetIds(new Set())}
+            style={{ ...styles.clearAllBtn, width: '100%' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#3498db';
+              e.currentTarget.style.color = 'white';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(52, 152, 219, 0.3)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = '#3498db';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            Clear All
+          </button>
+          <ScenarioSimulateButton onClick={() => setShowScenarioModal(true)} style={{ width: '100%', marginTop: '4px' }} />
+          <div style={styles.budgetHint}>
+            Click on budgets to select multiple and check specific budgets
+          </div>
+        </div>
+      </div>
+
+      <ScenarioSimulateModal
+          open={showScenarioModal}
+          onClose={() => {
+            setShowScenarioModal(false);
+          }}
+          categories={categories}
+          onSimulate={({ mode, value, simulateType }) => {
+            // Simulate only for categories in selected budgets
+            const selectedCategoryIds = new Set();
+            filteredBudgets.forEach(b => (b.category_ids || []).forEach(id => selectedCategoryIds.add(id)));
+            const relevantCategories = categories.filter(cat => selectedCategoryIds.has(cat.category_id));
+            
+            const results = relevantCategories.map(cat => {
+              let currentExpense = 0;
+              let simulatedExpense = 0;
+              let currentIncome = 0;
+              let simulatedIncome = 0;
+              
+              if (simulateType === 'expense' || simulateType === 'both') {
+                const expenseTxs = transactions.filter(tx => tx.category_id === cat.category_id && tx.type === 'expense');
+                currentExpense = expenseTxs.reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+                simulatedExpense = currentExpense;
+                if (mode === 'percent') {
+                  simulatedExpense = currentExpense + (currentExpense * (value / 100));
+                } else if (mode === 'amount') {
+                  simulatedExpense = value;
+                }
+                if (simulatedExpense < 0) simulatedExpense = 0;
+              }
+              
+              if (simulateType === 'income' || simulateType === 'both') {
+                const incomeTxs = transactions.filter(tx => tx.category_id === cat.category_id && tx.type === 'income');
+                currentIncome = incomeTxs.reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+                simulatedIncome = currentIncome;
+                if (mode === 'percent') {
+                  simulatedIncome = currentIncome + (currentIncome * (value / 100));
+                } else if (mode === 'amount') {
+                  simulatedIncome = value;
+                }
+                if (simulatedIncome < 0) simulatedIncome = 0;
+              }
+              
+              return {
+                categoryName: cat.category_name,
+                currentExpense: simulateType === 'expense' || simulateType === 'both' ? currentExpense : 0,
+                simulatedExpense: simulateType === 'expense' || simulateType === 'both' ? simulatedExpense : 0,
+                currentIncome: simulateType === 'income' || simulateType === 'both' ? currentIncome : 0,
+                simulatedIncome: simulateType === 'income' || simulateType === 'both' ? simulatedIncome : 0,
+                current: (simulateType === 'expense' || simulateType === 'both' ? currentExpense : 0) + (simulateType === 'income' || simulateType === 'both' ? currentIncome : 0),
+                simulated: (simulateType === 'expense' || simulateType === 'both' ? simulatedExpense : 0) + (simulateType === 'income' || simulateType === 'both' ? simulatedIncome : 0),
+              };
+            });
+            
+            // Ensure all selected categories are present
+            relevantCategories.forEach(cat => {
+              if (!results.find(r => r.categoryName === cat.category_name)) {
+                results.push({ 
+                  categoryName: cat.category_name, 
+                  currentExpense: 0, 
+                  simulatedExpense: 0,
+                  currentIncome: 0,
+                  simulatedIncome: 0,
+                  current: 0, 
+                  simulated: 0 
+                });
+              }
+            });
+            
+            // Calculate total impact
+            let totalCurrent = 0;
+            let totalCurrentAll = 0;
+            let totalSimulatedAll = 0;
+            
+            if (simulateType === 'expense' || simulateType === 'both') {
+              totalCurrent = transactions.filter(tx => tx.type === 'expense' && selectedCategoryIds.has(tx.category_id)).reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+              totalCurrentAll += results.reduce((sum, r) => sum + r.currentExpense, 0);
+              totalSimulatedAll += results.reduce((sum, r) => sum + r.simulatedExpense, 0);
+            }
+            
+            if (simulateType === 'income' || simulateType === 'both') {
+              const incomeCurrent = transactions.filter(tx => tx.type === 'income' && selectedCategoryIds.has(tx.category_id)).reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+              totalCurrent += incomeCurrent;
+              totalCurrentAll += results.reduce((sum, r) => sum + r.currentIncome, 0);
+              totalSimulatedAll += results.reduce((sum, r) => sum + r.simulatedIncome, 0);
+            }
+            
+            const totalSimulated = totalCurrent - totalCurrentAll + totalSimulatedAll;
+            setSimulationResult({
+              categories: results,
+              impactOnTotal: totalSimulated - totalCurrent,
+              simulateType,
+              mode,
+              value
+            });
+          }}
+          simulationResult={simulationResult}
+        />
+
+      {/* Main Analysis Content */}
+
+      {/* Main Analysis Content */}
+      <div style={styles.mainContent}>
+        {isSimulation && (
+          <div style={{
+            background: 'linear-gradient(90deg, #ffe259 0%, #ffa751 100%)',
+            color: '#232323',
+            padding: '10px 18px',
+            borderRadius: 10,
+            margin: '0 0 12px 0',
+            fontWeight: 700,
+            fontSize: 15,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: '0 2px 8px rgba(255, 174, 81, 0.10)'
+          }}>
+            <span>
+              <span style={{ marginRight: 10, fontSize: 18 }}>⚡</span>
+              <span>
+                Simulation Mode Active — 
+                {simulationResult.simulateType === 'both' && ` Both income & expenses simulating `}
+                {simulationResult.simulateType === 'income' && ` Your income simulating `}
+                {simulationResult.simulateType === 'expense' && ` Your expenses simulating `}
+                {simulationResult.mode === 'percent' ? `by ${simulationResult.value > 0 ? '+' : ''}${simulationResult.value}%` : `to RM${simulationResult.value.toFixed(2)}`}
+              </span>
+            </span>
+            <button
+              style={{
+                background: '#e74c3c',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 6,
+                padding: '7px 16px',
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: 'pointer',
+                marginLeft: 14
+              }}
+              onClick={() => setSimulationResult(null)}
+            >
+              Clear Simulation
+            </button>
+          </div>
+        )}
+        <h2 style={styles.pageTitle}>Finance Analysis {selectedBudgetIds.size > 0 && `(${selectedBudgetIds.size} budget${selectedBudgetIds.size !== 1 ? 's' : ''})`}</h2>
+
+        <SummaryCards {...summaryData} />
+
+        {/* Category Breakdown Bar Chart - Vertical Whitespace Fix */}
+        {categoryChartData.length > 0 && (
+          <div style={styles.sectionContainer}>
+            <h3 style={styles.sectionTitle}>Top Category Spending</h3>
+            <p style={{ fontSize: '12px', color: '#7f8c8d', margin: '0 0 12px 0' }}>
+              📊 Red bars show expenses, green bars show income by category. Sorted by highest spending first.
+            </p>
+            <div style={{ ...styles.chartContainer, width: '100%', padding: 0, marginBottom: 0 }}>
+              <ResponsiveContainer width="100%" height={500}>
+                <BarChart 
+                  data={categoryChartData} 
+                  margin={{ top: 20, right: 10, left: 40, bottom: 5 }} 
+                  barCategoryGap="20%" 
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis 
+                    dataKey="name" 
+                    angle={0} 
+                    textAnchor="middle" 
+                    height={60} 
+                    interval={0}
+                    padding={{ left: 30, right: 30 }}
+                  />
+                  <YAxis 
+                    domain={[0, 'dataMax + 10']} 
+                    tickFormatter={(value) => `RM${value}`}
+                  />
+                  <Tooltip formatter={(value) => formatCurrency(value)} />
+                  <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px' }} />
+                  <Bar dataKey="spent" fill="#e74c3c" name="Expense" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="income" fill="#27ae60" name="Income" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {/* Monthly Spending Trend */}
+        {monthlyTrendData.length > 0 && (
+          <div style={styles.sectionContainer}>
+            <h3 style={styles.sectionTitle}>Monthly Spending Trend (Last 12 Months)</h3>
+            <p style={{ fontSize: '12px', color: '#7f8c8d', margin: '0 0 12px 0' }}>
+              📈 Red line = Expenses, Green line = Income. Hover over points to see exact amounts.
+            </p>
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={monthlyTrendData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis tickFormatter={(value) => `RM${value}`} />
+                <Tooltip formatter={(value) => formatCurrency(value)} />
+                <Legend wrapperStyle={{ paddingTop: '12px' }} />
+                <Line type="monotone" dataKey="spent" stroke="#e74c3c" name="Spending" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="income" stroke="#27ae60" name="Income" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        <div style={styles.sectionContainer}>
+          <h3 style={styles.sectionTitle}>Selected Budgets Overview</h3>
+          <div style={styles.tableWrapper}>
+            <table style={styles.table}>
+              <thead style={styles.tableHead}>
+                <tr>
+                  <th style={styles.tableHeaderCell('left')}>Budget</th>
+                  <th style={styles.tableHeaderCell('left')}>Period</th>
+                  <th style={styles.tableHeaderCell('right')}>Limit</th>
+                  <th style={styles.tableHeaderCell('right')}>Spent</th>
+                  <th style={styles.tableHeaderCell('right')}>Remaining</th>
+                  <th style={styles.tableHeaderCell('right')}>Usage %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthlyTableData.length === 0 ? (
+                  <tr><td colSpan="6" style={styles.emptyTableCell}>Select budgets to see analysis</td></tr>
+                ) : monthlyTableData.map((row, idx) => (
+                  <tr key={row.id} style={{ 
+                    transition: 'background-color 0.2s ease',
+                    cursor: 'pointer'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f0f4f8';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#ffffff' : '#f9f9f9';
+                  }}>
+                    <td style={styles.tableCell('left', idx)} title={row.name}>{row.name}</td>
+                    <td style={styles.tableCell('left', idx)} title={row.period}>{row.period}</td>
+                    <td style={styles.tableCell('right', idx)} title={`Limit: ${formatCurrency(row.limit)}`}>{formatCurrency(row.limit)}</td>
+                    <td style={styles.tableCell('right', idx)} title={`Spent: ${formatCurrency(row.spent)}`}>{formatCurrency(row.spent)}</td>
+                    <td style={styles.tableCellWithColor('right', getRemainingColor(row.remaining), idx)} title={`Remaining: ${formatCurrency(row.remaining)}`}>{formatCurrency(row.remaining)}</td>
+                    <td style={styles.tableCell('right', idx)} title={`Usage: ${row.usage}%`}>{row.usage}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style={styles.sectionContainerSecondary}>
+          <h3 style={styles.sectionTitle}>Top Category Expenses</h3>
+          <div style={styles.tableWrapper}>
+            <table style={styles.table}>
+              <thead style={styles.tableHead}>
+                <tr>
+                  <th style={styles.tableHeaderCell('left')}>Category</th>
+                  <th style={styles.tableHeaderCell('right')}>Expense</th>
+                  <th style={styles.tableHeaderCell('right')}>Income</th>
+                </tr>
+              </thead>
+              <tbody>
+                {categorySummary.length === 0 ? (
+                  <tr><td colSpan="3" style={styles.emptyTableCell}>No categories found.</td></tr>
+                ) : categorySummary.map((c, idx) => (
+                  <tr key={c.category_id} style={{ 
+                    transition: 'background-color 0.2s ease',
+                    cursor: 'pointer'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f0f4f8';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#ffffff' : '#f9f9f9';
+                  }}>
+                    <td style={styles.tableCell('left', idx)} title={c.category_name}>{c.category_name}</td>
+                    <td style={styles.tableCell('right', idx)} title={`Expense: ${formatCurrency(c.spent)}`}>{formatCurrency(c.spent)}</td>
+                    <td style={styles.tableCell('right', idx)} title={`Income: ${formatCurrency(c.income)}`}>{formatCurrency(c.income)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default Analysis;

@@ -1,0 +1,21 @@
+/* categoryExplorerAnimations.css */
+
+/* General button hover animation */
+.category-explorer-animated-btn {
+  transition: transform 0.15s cubic-bezier(0.4, 0.2, 0.2, 1), box-shadow 0.15s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+.category-explorer-animated-btn:hover, .category-explorer-animated-btn:focus {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 4px 16px rgba(41,128,185,0.13);
+  z-index: 1;
+}
+
+/* Danger (delete) button animation */
+.category-explorer-animated-btn.danger:hover, .category-explorer-animated-btn.danger:focus {
+  box-shadow: 0 4px 16px rgba(231, 76, 60, 0.13);
+}
+
+/* Success (edit) button animation */
+.category-explorer-animated-btn.success:hover, .category-explorer-animated-btn.success:focus {
+  box-shadow: 0 4px 16px rgba(39, 174, 96, 0.13);
+}
