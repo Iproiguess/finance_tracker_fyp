@@ -170,6 +170,15 @@ function App() {
     );
   }
 
+  if (!session) {
+    return (
+      <ToastProvider toast={{ success, error }}>
+        <Login onAuthSuccess={() => {}} />
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+      </ToastProvider>
+    );
+  }
+
   return (
     <ToastProvider toast={{ success, error }}>
       <div style={styles.appContainer}>
