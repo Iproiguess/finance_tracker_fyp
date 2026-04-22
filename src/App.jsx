@@ -113,7 +113,7 @@ import Analysis from './components/analysis';
 function App() {
   const [session, setSession] = useState(null);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
-  const [view, setView] = useState('dashboard'); // 'dashboard' | 'budget' | 'analysis'
+  const [view, setView] = useState('explorer'); // 'explorer' | 'budget' | 'analysis'
 
   useEffect(() => {
     const handleInitialSession = async () => {
@@ -185,8 +185,8 @@ function App() {
         </div>
         <div style={{ display: 'flex', alignItems: 'stretch', marginLeft: 'auto', gap: 0, justifyContent: 'flex-end' }}>
           <button
-            onClick={() => setView('dashboard')}
-            style={view === 'dashboard'
+            onClick={() => setView('explorer')}
+            style={view === 'explorer'
               ? { ...styles.menuBtn, ...styles.menuBtnActive, minWidth: 120 }
               : { ...styles.menuBtn, ...styles.menuBtnInactive, minWidth: 120 }}
             onMouseEnter={(e) => {
@@ -197,7 +197,7 @@ function App() {
               e.currentTarget.style.transform = 'translateY(0)';
               e.currentTarget.style.boxShadow = 'none';
             }}
-          >Dashboard</button>
+          >Explorer</button>
           <button
             onClick={() => setView('analysis')}
             style={view === 'analysis'
@@ -245,7 +245,7 @@ function App() {
         </div>
       </div>
       <div style={styles.mainContent}>
-        {view === 'dashboard' && (
+        {view === 'explorer' && (
           <CategoryExplorer />
         )}
 
