@@ -60,6 +60,19 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   // Handle input changes and reset error state
   const handleChange = (e) => {
     const { name, value } = e.target;
+    
+    // Restrict amount to max 10 digits (not counting decimals)
+    if (name === 'amount' && value) {
+      const numValue = parseFloat(value);
+      if (numValue > 9999999999.99) {
+        return; // Don't update if exceeds limit
+      }
+      const digitsOnly = value.replace(/[^0-9]/g, '');
+      if (digitsOnly.length > 10) {
+        return; // Don't update if more than 10 digits
+      }
+    }
+    
     setFormData(prev => ({ ...prev, [name]: value }));
     setError('');
   };
@@ -126,6 +139,7 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
                 placeholder="0.00"
                 step="0.01"
                 min="0"
+                max="9999999999.99"
                 autoComplete="new-password"
                 required
               />
