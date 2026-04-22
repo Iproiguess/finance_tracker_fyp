@@ -109,15 +109,11 @@ import UpdatePassword from './updatepassword';
 import { CategoryExplorer } from './components/categoryexplorer';
 import BudgetPage from './components/budget';
 import Analysis from './components/analysis';
-import { useToast } from './hooks/useToast';
-import { ToastContainer } from './components/ToastContainer';
-import { ToastProvider } from './lib/ToastContext.jsx';
 
 function App() {
   const [session, setSession] = useState(null);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [view, setView] = useState('dashboard'); // 'dashboard' | 'budget' | 'analysis'
-  const { toasts, removeToast, success, error } = useToast();
 
   useEffect(() => {
     const handleInitialSession = async () => {
@@ -172,16 +168,12 @@ function App() {
 
   if (!session) {
     return (
-      <ToastProvider toast={{ success, error }}>
-        <Login onAuthSuccess={() => {}} />
-        <ToastContainer toasts={toasts} onRemove={removeToast} />
-      </ToastProvider>
+      <Login onAuthSuccess={() => {}} />
     );
   }
 
   return (
-    <ToastProvider toast={{ success, error }}>
-      <div style={styles.appContainer}>
+    <div style={styles.appContainer}>
       <div style={styles.navbar}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
           <h1 style={styles.logo}>Finance Tracker</h1>
@@ -265,9 +257,7 @@ function App() {
           <Analysis />
         )}
       </div>
-      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
-    </ToastProvider>
   );
 }
 
