@@ -13,8 +13,9 @@ import {
   getInitialFormData 
 } from './utils/budgetUtils';
 
+// Main page for managing budgets
 export default function BudgetPage() {
-  const { budgets, loading: budgetsLoading, addBudget, updateBudget, deleteBudget } = useBudgets();
+  const { budgets, loading: budgetsLoading, error: budgetsError, addBudget, updateBudget, deleteBudget } = useBudgets();
   const { categories, loading: categoriesLoading } = useCategories();
   const { transactions } = useTransactions();
   const [showForm, setShowForm] = useState(false);
@@ -24,7 +25,9 @@ export default function BudgetPage() {
   const [userId, setUserId] = useState(null);
   const [formData, setFormData] = useState(getInitialFormData());
   const [hoveredBtn, setHoveredBtn] = useState(null);
+  const [error, setError] = useState('');
 
+  // Fetch user ID on mount
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -33,12 +36,15 @@ export default function BudgetPage() {
     getUser();
   }, []);
 
+  // Reset form state
   const resetForm = () => {
     setFormData(getInitialFormData());
     setShowForm(false);
     setEditingBudget(null);
+    setError('');
   };
 
+  // Toggle form visibility
   const handleToggleForm = () => {
     if (showForm) {
       resetForm();
@@ -46,49 +52,55 @@ export default function BudgetPage() {
       setFormData(getInitialFormData());
       setEditingBudget(null);
       setShowForm(true);
+      setError('');
     }
   };
 
+  // Handle form submit for add/edit
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
     try {
       if (!validateCategoriesExist(formData.category_ids, categories)) {
-        alert('One or more selected categories no longer exist. Please choose again.');
+        setError('One or more selected categories no longer exist. Please choose again.');
         return;
       }
-
       if (formData.category_ids.length === 0) {
-        alert('Please select at least one category.');
+        setError('Please select at least one category.');
         return;
       }
-
+      if (!formData.monthly_limit || isNaN(parseFloat(formData.monthly_limit))) {
+        setError('Please enter a valid monthly limit.');
+        return;
+      }
+      if (!formData.year || isNaN(parseInt(formData.year))) {
+        setError('Please enter a valid year.');
+        return;
+      }
       const budgetData = {
         ...formData,
         monthly_limit: parseFloat(formData.monthly_limit),
         budget_name: formData.budget_name || generateBudgetName(formData.category_ids, categories),
         user_id: userId
       };
-
       if (editingBudget) {
         await updateBudget(editingBudget.budget_id, budgetData);
       } else {
         await addBudget(budgetData);
       }
-
       resetForm();
-    } catch (error) {
-      alert('Error saving budget: ' + error.message);
+    } catch (err) {
+      setError('Error saving budget: ' + (err.message || err));
     }
   };
 
+  // Handle edit button click
   const handleEdit = (budget) => {
     const categoryIds = budget.category_ids || [];
-    
     if (!validateCategoriesExist(categoryIds, categories)) {
-      alert('This budget references one or more categories that no longer exist.');
+      setError('This budget references one or more categories that no longer exist.');
       return;
     }
-    
     setEditingBudget(budget);
     setFormData({
       budget_name: budget.budget_name || '',
@@ -99,21 +111,26 @@ export default function BudgetPage() {
       rollover: budget.rollover ?? budget.rollover_enabled ?? false
     });
     setShowForm(true);
+    setError('');
   };
 
+  // Handle delete button click
   const handleDelete = (budget) => {
     setBudgetToDelete(budget);
     setDeleteConfirm(true);
+    setError('');
   };
 
+  // Confirm deletion of a budget
   const confirmDelete = async () => {
     if (!budgetToDelete) return;
+    setError('');
     try {
       await deleteBudget(budgetToDelete.budget_id);
       setDeleteConfirm(false);
       setBudgetToDelete(null);
-    } catch (error) {
-      alert('Error deleting budget: ' + error.message);
+    } catch (err) {
+      setError('Error deleting budget: ' + (err.message || err));
     }
   };
 
@@ -168,6 +185,13 @@ export default function BudgetPage() {
           {showForm ? 'Cancel' : '+ Add Budget'}
         </button>
       </div>
+
+      {/* Error display */}
+      {(error || budgetsError) && (
+        <div style={{ color: '#dc3545', background: '#fff3f3', border: '1px solid #f5c2c7', padding: '10px', borderRadius: 6, margin: '10px 0' }}>
+          {error || budgetsError}
+        </div>
+      )}
 
       {showForm && (
         <BudgetForm

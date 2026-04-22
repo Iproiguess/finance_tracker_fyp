@@ -6,12 +6,19 @@ export function ScenarioSimulateModal({
   open,
   onClose,
   onSimulate,
+  transactions = [],
+  selectedBudgetIds = new Set(),
+  allBudgets = [],
 }) {
   const [mode, setMode] = useState('percent'); // 'percent' or 'amount'
   const [value, setValue] = useState('');
   const [simulateType, setSimulateType] = useState('expense'); // 'expense', 'income', or 'both'
+  // Smart suggestion state
+  const [suggested, setSuggested] = useState(null);
   const [hoveredBtn, setHoveredBtn] = useState(null);
   const [hoveredSimulate, setHoveredSimulate] = useState(false);
+  // Modal-level budget selection
+  const [modalSelectedBudgetIds, setModalSelectedBudgetIds] = useState(new Set(selectedBudgetIds));
   const modalRef = useRef(null);
   const closeBtnRef = useRef(null);
   // Accessibility: trap focus inside modal
@@ -50,10 +57,163 @@ export function ScenarioSimulateModal({
   const handleModeAmount = useCallback(() => setMode('amount'), []);
   const handleValueChange = useCallback((e) => setValue(e.target.value), []);
   const handleSimulateTypeChange = useCallback((type) => setSimulateType(type), []);
+  
+  // Budget selection handlers
+  const toggleBudgetSelection = useCallback((budgetId) => {
+    setModalSelectedBudgetIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(budgetId)) {
+        newSet.delete(budgetId);
+      } else {
+        newSet.add(budgetId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    if (modalSelectedBudgetIds.size === allBudgets.length) {
+      // Deselect all
+      setModalSelectedBudgetIds(new Set());
+    } else {
+      // Select all
+      const allIds = new Set(allBudgets.map(b => b.budget_id));
+      setModalSelectedBudgetIds(allIds);
+    }
+  }, [allBudgets, modalSelectedBudgetIds.size]);
+  
   const handleSimulate = useCallback(() => {
-    onSimulate({ mode, value: Number(value), simulateType });
+    onSimulate({ mode, value: Number(value), simulateType, selectedBudgetIds: Array.from(modalSelectedBudgetIds) });
     onClose();
-  }, [onSimulate, mode, value, simulateType, onClose]);
+  }, [onSimulate, mode, value, simulateType, modalSelectedBudgetIds, onClose]);
+
+  // Suggestion logic: analyze up to 12 months of historical data
+  const handleSuggest = useCallback(() => {
+    // If budgets are selected in modal, filter transactions to only those budgets
+    let relevantTransactions = transactions;
+    if (modalSelectedBudgetIds.size > 0) {
+      const selectedCategoryIds = new Set();
+      allBudgets
+        .filter(b => modalSelectedBudgetIds.has(b.budget_id))
+        .forEach(b => (b.category_ids || []).forEach(id => selectedCategoryIds.add(id)));
+      relevantTransactions = transactions.filter(tx => selectedCategoryIds.has(tx.category_id));
+    }
+    
+    if (!relevantTransactions || relevantTransactions.length === 0) return setSuggested('No data for selected budgets');
+    
+    const now = new Date();
+    // Look back max 12 months for performance
+    const twelveMonthsAgo = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+    
+    // Analyze BOTH expense and income trends separately
+    const expenseFiltered = relevantTransactions.filter(tx => {
+      const d = new Date(tx.date);
+      return d >= twelveMonthsAgo && tx.type === 'expense';
+    });
+    
+    const incomeFiltered = relevantTransactions.filter(tx => {
+      const d = new Date(tx.date);
+      return d >= twelveMonthsAgo && tx.type === 'income';
+    });
+    
+    // Group expenses by month
+    const expenseMonthly = {};
+    expenseFiltered.forEach(tx => {
+      const d = new Date(tx.date);
+      const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
+      if (!expenseMonthly[key]) expenseMonthly[key] = 0;
+      expenseMonthly[key] += parseFloat(tx.amount || 0);
+    });
+    const expenseVals = Object.values(expenseMonthly).sort((a, b) => a - b);
+    
+    // Group income by month
+    const incomeMonthly = {};
+    incomeFiltered.forEach(tx => {
+      const d = new Date(tx.date);
+      const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
+      if (!incomeMonthly[key]) incomeMonthly[key] = 0;
+      incomeMonthly[key] += parseFloat(tx.amount || 0);
+    });
+    const incomeVals = Object.values(incomeMonthly).sort((a, b) => a - b);
+    
+    // Calculate expense trend
+    let expenseTrend = 0;
+    if (expenseVals.length >= 2) {
+      let changes = [];
+      for (let i = 1; i < expenseVals.length; ++i) {
+        const change = (expenseVals[i] - expenseVals[i - 1]) / expenseVals[i - 1];
+        changes.push(Math.max(-0.5, Math.min(0.5, change)));
+      }
+      expenseTrend = changes.reduce((a, b) => a + b, 0) / changes.length;
+    } else if (expenseVals.length === 1) {
+      expenseTrend = -0.05; // Conservative -5% if only 1 month
+    }
+    
+    // Calculate income trend
+    let incomeTrend = 0;
+    if (incomeVals.length >= 2) {
+      let changes = [];
+      for (let i = 1; i < incomeVals.length; ++i) {
+        const change = (incomeVals[i] - incomeVals[i - 1]) / incomeVals[i - 1];
+        changes.push(Math.max(-0.5, Math.min(0.5, change)));
+      }
+      incomeTrend = changes.reduce((a, b) => a + b, 0) / changes.length;
+    } else if (incomeVals.length === 1) {
+      incomeTrend = -0.05; // Conservative -5% if only 1 month
+    }
+    
+    // Smart suggestion: Reduce expenses to stay within budget limits
+    // Get the latest month's expenses and budget limit
+    const expenseMonthKeys = Object.keys(expenseMonthly).sort();
+    const latestMonthKey = expenseMonthKeys[expenseMonthKeys.length - 1];
+    const currentMonthExpense = latestMonthKey ? expenseMonthly[latestMonthKey] : 0;
+    
+    // Get total budget limit for selected budgets
+    let totalBudgetLimit = 0;
+    if (modalSelectedBudgetIds.size > 0) {
+      allBudgets
+        .filter(b => modalSelectedBudgetIds.has(b.budget_id))
+        .forEach(b => totalBudgetLimit += b.monthly_limit);
+    } else {
+      allBudgets.forEach(b => totalBudgetLimit += b.monthly_limit);
+    }
+    
+    // Calculate suggestion based on budget vs current expenses
+    let suggestedType = 'expense';
+    let suggestedValue = 0;
+    let suggestionMessage = '';
+    
+    if (totalBudgetLimit > 0 && currentMonthExpense > 0) {
+      // If current expenses exceed 80% of budget, suggest reduction to get to 75% of budget
+      const targetExpense = totalBudgetLimit * 0.75;
+      const reductionPercentage = ((currentMonthExpense - targetExpense) / currentMonthExpense) * 100;
+      
+      if (reductionPercentage > 0) {
+        // Expenses are above target - suggest reduction
+        suggestedValue = Math.round(-reductionPercentage);
+        suggestionMessage = `Reduce expenses by ${Math.abs(suggestedValue)}% to reach 75% of budget`;
+      } else if (expenseTrend > 0.1) {
+        // Expenses trending upward - suggest preventive reduction
+        suggestedValue = Math.round(expenseTrend * -100);
+        suggestionMessage = `Expenses trending upward. Reduce by ${Math.abs(suggestedValue)}% to stay within budget`;
+      } else {
+        suggestionMessage = 'Your expenses are within budget. Good control!';
+        suggestedValue = 0;
+      }
+    } else if (expenseTrend > 0.1) {
+      // No budget limit set, use trend-based suggestion
+      suggestedValue = Math.round(expenseTrend * -50);
+      suggestionMessage = `Expenses trending upward. Reduce by ${Math.abs(suggestedValue)}%`;
+    } else {
+      suggestionMessage = 'Expenses are stable. No reduction needed.';
+      suggestedValue = 0;
+    }
+    
+    setSuggested(suggestionMessage);
+    setMode('percent');
+    setValue(suggestedValue);
+    setSimulateType(suggestedType);
+  }, [transactions, modalSelectedBudgetIds, allBudgets]);
 
   if (!open) return null;
 
@@ -84,6 +244,52 @@ export function ScenarioSimulateModal({
           <span>
             Simulate budget scenarios: Select specific budgets, adjust income or expenses by percentage or fixed amount to see real-time impact on your remaining balance.
           </span>
+        </div>
+        
+        {/* Budget Selection */}
+        <div style={styles.formRow}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <label style={styles.label}>Select Budgets</label>
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#2176ae',
+                fontWeight: 600,
+                fontSize: 12,
+                cursor: 'pointer',
+                padding: '4px 8px',
+                textDecoration: 'underline'
+              }}
+              title={modalSelectedBudgetIds.size === allBudgets.length ? 'Deselect all' : 'Select all'}
+            >
+              {modalSelectedBudgetIds.size === allBudgets.length ? 'Deselect All' : 'Select All'}
+            </button>
+          </div>
+          <div style={styles.badgeContainer}>
+            {allBudgets.length === 0 ? (
+              <div style={{ fontSize: 13, color: '#7f8c8d' }}>No budgets available</div>
+            ) : (
+              allBudgets.map(budget => (
+                <button
+                  key={budget.budget_id}
+                  type="button"
+                  onClick={() => toggleBudgetSelection(budget.budget_id)}
+                  style={{
+                    ...styles.badge,
+                    background: modalSelectedBudgetIds.has(budget.budget_id) ? '#2176ae' : '#f0f4f8',
+                    color: modalSelectedBudgetIds.has(budget.budget_id) ? '#fff' : '#333',
+                    borderColor: modalSelectedBudgetIds.has(budget.budget_id) ? '#2176ae' : '#d3d6de',
+                  }}
+                  title={`Click to ${modalSelectedBudgetIds.has(budget.budget_id) ? 'deselect' : 'select'} ${budget.budget_name}`}
+                >
+                  {budget.budget_name}
+                </button>
+              ))
+            )}
+          </div>
         </div>
         
         <div style={styles.formRow}>
@@ -131,7 +337,7 @@ export function ScenarioSimulateModal({
               onClick={handleModeAmount}
               type="button"
             >
-              RM
+              Amount
             </button>
             <input
               id="scenario-value-input"
@@ -163,12 +369,24 @@ export function ScenarioSimulateModal({
         >
           Simulate
         </button>
+        <button
+          style={{ ...styles.simulateBtn, marginTop: 8, background: '#e3e7ed', color: '#2176ae', fontWeight: 600, fontSize: 15, border: '1px solid #2176ae' }}
+          type="button"
+          onClick={handleSuggest}
+          title={selectedBudgetIds.size > 0 ? "Analyze selected budgets' 12-month trend to suggest realistic adjustments" : "Analyze all transactions' 12-month trend to suggest realistic adjustments"}
+        >
+          Suggest
+        </button>
+        <div style={{ fontSize: 12, color: '#666', marginTop: 6, lineHeight: 1.4 }}>
+          💡 <strong>Smart Suggest:</strong> Analyzes {modalSelectedBudgetIds.size > 0 ? 'your selected budgets' : 'all'} 12-month trend and suggests budget adjustments based on your actual spending patterns.
+        </div>
+        {suggested && <div style={{ color: '#2176ae', marginTop: 8, fontSize: 13, fontWeight: 500 }}>Suggested: {suggested}</div>}
       </div>
     </div>
   );
 }
 
-// Styles object (fixed)
+// Styles object
 const styles = {
   overlay: {
     position: 'fixed',

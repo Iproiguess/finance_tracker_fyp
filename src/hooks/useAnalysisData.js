@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect } from 'react';
 import { getCurrentSpendingByBudget, getCurrentIncomeByBudget, MONTH_NAMES } from '../components/utils/budgetUtils';
 
-export function useAnalysisData(budgets, transactions, categories, budgetsLoading, transactionsLoading, categoriesLoading, selectedMonth = 'all') {
+// Accepts selectedStartMonth and selectedEndMonth for range filtering
+export function useAnalysisData(budgets, transactions, categories, budgetsLoading, transactionsLoading, categoriesLoading, selectedStartMonth = 'all', selectedEndMonth = 'all') {
   const [selectedBudgetIds, setSelectedBudgetIds] = useState(new Set());
   const [simulationResult, setSimulationResult] = useState(null);
   const [showScenarioModal, setShowScenarioModal] = useState(false);
@@ -49,18 +50,20 @@ export function useAnalysisData(budgets, transactions, categories, budgetsLoadin
     return Array.from(ids);
   }, [filteredBudgets]);
 
-  // Filtered transactions
+  // Filtered transactions by month range
   const filteredTransactions = useMemo(() => {
     let txs = selectedCategoryIds.length === 0 ? transactions : transactions.filter(tx => selectedCategoryIds.includes(tx.category_id));
-    
-    // Filter by month
-    if (selectedMonth === 'all') return txs;
-    const [year, month] = selectedMonth.split('-').map(Number);
+    // If either is 'all', return all
+    if (selectedStartMonth === 'all' || selectedEndMonth === 'all') return txs;
+    const [startYear, startMonth] = selectedStartMonth.split('-').map(Number);
+    const [endYear, endMonth] = selectedEndMonth.split('-').map(Number);
+    const startDate = new Date(startYear, startMonth - 1, 1);
+    const endDate = new Date(endYear, endMonth, 0, 23, 59, 59, 999); // End of end month
     return txs.filter(tx => {
       const txDate = new Date(tx.date);
-      return txDate.getFullYear() === year && txDate.getMonth() + 1 === month;
+      return txDate >= startDate && txDate <= endDate;
     });
-  }, [transactions, selectedCategoryIds, selectedMonth]);
+  }, [transactions, selectedCategoryIds, selectedStartMonth, selectedEndMonth]);
 
   // Total budget calculation
   const totalBudget = useMemo(() => {

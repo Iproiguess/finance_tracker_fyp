@@ -10,6 +10,7 @@ import { getCurrentSpendingByBudget, MONTH_NAMES } from './utils/budgetUtils';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { ScenarioSimulateButton } from './ScenarioSimulateButton';
 import { ScenarioSimulateModal } from './ScenarioSimulateModal';
+import { ForecastAndRecommendation } from './ForecastAndRecommendation';
 
 export function Analysis() {
   const { budgets, loading: budgetsLoading } = useBudgets();
@@ -24,15 +25,26 @@ export function Analysis() {
     return `${year}-${month}`;
   };
 
-  const [selectedMonth, setSelectedMonth] = React.useState(getCurrentMonthString());
+  // Month range selection
+  const [selectedStartMonth, setSelectedStartMonth] = React.useState('all');
+  const [selectedEndMonth, setSelectedEndMonth] = React.useState(getCurrentMonthString());
 
-  const { loading, selectedBudgetIds, setSelectedBudgetIds, toggleBudgetSelection, filteredBudgets, summaryData, monthlyTableData, categoryChartData, monthlyTrendData, showScenarioModal, setShowScenarioModal, simulationResult, setSimulationResult } = useAnalysisData(budgets, transactions, categories, budgetsLoading, transactionsLoading, categoriesLoading, selectedMonth);
+  const { loading, selectedBudgetIds, setSelectedBudgetIds, toggleBudgetSelection, filteredBudgets, summaryData, monthlyTableData, categoryChartData, monthlyTrendData, showScenarioModal, setShowScenarioModal, simulationResult, setSimulationResult } = useAnalysisData(budgets, transactions, categories, budgetsLoading, transactionsLoading, categoriesLoading, selectedStartMonth, selectedEndMonth);
 
   if (loading) return <div style={styles.container}><div style={{ padding: '40px', textAlign: 'center' }}>Loading analysis...</div></div>;
 
-  const handleSimulate = ({ mode, value, simulateType }) => {
+  const handleSimulate = ({ mode, value, simulateType, selectedBudgetIds: modalBudgetIds }) => {
+    // Use the budget IDs from the modal if provided, otherwise use component state
+    const budgetsToUseIds = modalBudgetIds && modalBudgetIds.length > 0 
+      ? new Set(modalBudgetIds)
+      : selectedBudgetIds;
+    
     const selectedCategoryIds = new Set();
-    filteredBudgets.forEach(b => (b.category_ids || []).forEach(id => selectedCategoryIds.add(id)));
+    // Use only the selected budgets, not filtered budgets based on month range
+    const budgetsToSimulate = budgetsToUseIds.size > 0 
+      ? budgets.filter(b => budgetsToUseIds.has(b.budget_id))
+      : filteredBudgets;
+    budgetsToSimulate.forEach(b => (b.category_ids || []).forEach(id => selectedCategoryIds.add(id)));
     const relevantCategories = categories.filter(cat => selectedCategoryIds.has(cat.category_id));
     
     const results = relevantCategories.map(cat => {
@@ -56,7 +68,7 @@ export function Analysis() {
     if (simulateType === 'expense' || simulateType === 'both') { totalCurrent = transactions.filter(tx => tx.type === 'expense' && selectedCategoryIds.has(tx.category_id)).reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0); totalCurrentAll += results.reduce((sum, r) => sum + r.currentExpense, 0); totalSimulatedAll += results.reduce((sum, r) => sum + r.simulatedExpense, 0); }
     if (simulateType === 'income' || simulateType === 'both') { const incomeCurrent = transactions.filter(tx => tx.type === 'income' && selectedCategoryIds.has(tx.category_id)).reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0); totalCurrent += incomeCurrent; totalCurrentAll += results.reduce((sum, r) => sum + r.currentIncome, 0); totalSimulatedAll += results.reduce((sum, r) => sum + r.simulatedIncome, 0); }
     const totalSimulated = totalCurrent - totalCurrentAll + totalSimulatedAll;
-    setSimulationResult({ categories: results, impactOnTotal: totalSimulated - totalCurrent, simulateType, mode, value });
+    setSimulationResult({ categories: results, impactOnTotal: totalSimulated - totalCurrent, simulateType, mode, value, selectedCategoryIds: Array.from(selectedCategoryIds), selectedBudgetIds: Array.from(budgetsToSimulate.map(b => b.budget_id)) });
   };
 
   return (
@@ -75,65 +87,96 @@ export function Analysis() {
           <div style={styles.budgetHint}>Click on budgets to select multiple and check specific budgets</div>
         </div>
       </div>
-      <ScenarioSimulateModal open={showScenarioModal} onClose={() => setShowScenarioModal(false)} categories={categories} onSimulate={handleSimulate} simulationResult={simulationResult} />
+      <ScenarioSimulateModal open={showScenarioModal} onClose={() => setShowScenarioModal(false)} categories={categories} onSimulate={handleSimulate} simulationResult={simulationResult} transactions={transactions} selectedBudgetIds={selectedBudgetIds} allBudgets={budgets} />
       <div style={styles.mainContent}>
-        {simulationResult && (<div style={{ background: 'linear-gradient(90deg, #ffe259 0%, #ffa751 100%)', color: '#232323', padding: '10px 18px', borderRadius: 10, margin: '0 0 12px 0', fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 2px 8px rgba(255, 174, 81, 0.10)' }}><span><span style={{ marginRight: 10, fontSize: 18 }}>⚡</span><span>Simulation Mode Active — {simulationResult.simulateType === 'both' && 'Both income & expenses simulating'}{simulationResult.simulateType === 'income' && 'Your income simulating'}{simulationResult.simulateType === 'expense' && 'Your expenses simulating'} {simulationResult.mode === 'percent' ? `by ${simulationResult.value > 0 ? '+' : ''}${simulationResult.value}%` : `to RM${simulationResult.value.toFixed(2)}`}</span></span><button style={{ background: '#e74c3c', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 16px', fontWeight: 700, fontSize: 14, cursor: 'pointer', marginLeft: 14 }} onClick={() => setSimulationResult(null)}>Clear Simulation</button></div>)}
+        {simulationResult && (<div style={{ background: 'linear-gradient(90deg, #ffe259 0%, #ffa751 100%)', color: '#232323', padding: '10px 18px', borderRadius: 10, margin: '0 0 12px 0', fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 2px 8px rgba(255, 174, 81, 0.10)' }}><span><span style={{ marginRight: 10, fontSize: 18 }}>⚡</span><span>Simulation Mode Active — {simulationResult.simulateType === 'both' && 'Both income & expenses simulating'}{simulationResult.simulateType === 'income' && 'Your income simulating'}{simulationResult.simulateType === 'expense' && 'Your expenses simulating'} {simulationResult.mode === 'percent' ? `by ${simulationResult.value > 0 ? '+' : ''}${simulationResult.value}%` : `to ${formatCurrency(simulationResult.value)}`}</span></span><button style={{ background: '#e74c3c', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 16px', fontWeight: 700, fontSize: 14, cursor: 'pointer', marginLeft: 14 }} onClick={() => setSimulationResult(null)}>Clear Simulation</button></div>)}
+        {simulationResult && <ForecastAndRecommendation simulationResult={simulationResult} transactions={transactions} budgets={budgets} selectedBudgetIds={selectedBudgetIds} />}
         
         <div style={{ marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
             <h2 style={styles.pageTitle}>Finance Analysis {selectedBudgetIds.size > 0 && `(${selectedBudgetIds.size} budget${selectedBudgetIds.size !== 1 ? 's' : ''})`}</h2>
             
-            <select 
-              value={selectedMonth} 
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              style={{
-                padding: '8px 12px',
-                borderRadius: '6px',
-                border: '1px solid #bdc3c7',
-                backgroundColor: '#fff',
-                color: '#2c3e50',
-                fontSize: '14px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                minWidth: '160px'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = '#3498db';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(52, 152, 219, 0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#bdc3c7';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              <option value="all">All Time</option>
-              {(() => {
-                const months = [];
-                const now = new Date();
-                for (let i = 0; i < 24; i++) {
-                  const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                  const year = d.getFullYear();
-                  const month = d.getMonth() + 1;
-                  const monthStr = `${year}-${String(month).padStart(2, '0')}`;
-                  const monthName = `${MONTH_NAMES[month - 1]} ${year}`;
-                  months.push(<option key={monthStr} value={monthStr}>{monthName}</option>);
-                }
-                return months;
-              })()}
-            </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label htmlFor="start-month" style={{ color: '#000' }}>From:</label>
+              <select
+                id="start-month"
+                value={selectedStartMonth}
+                onChange={e => setSelectedStartMonth(e.target.value)}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #bdc3c7',
+                  backgroundColor: '#fff',
+                  color: '#000',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  minWidth: '120px'
+                }}
+              >
+                <option value="all">All Time</option>
+                {(() => {
+                  const months = [];
+                  const now = new Date();
+                  for (let i = 0; i < 24; i++) {
+                    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                    const year = d.getFullYear();
+                    const month = d.getMonth() + 1;
+                    const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+                    const monthName = `${MONTH_NAMES[month - 1]} ${year}`;
+                    months.push(<option key={monthStr} value={monthStr}>{monthName}</option>);
+                  }
+                  return months;
+                })()}
+              </select>
+              <label htmlFor="end-month" style={{ color: '#000' }}>To:</label>
+              <select
+                id="end-month"
+                value={selectedEndMonth}
+                onChange={e => setSelectedEndMonth(e.target.value)}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #bdc3c7',
+                  backgroundColor: '#fff',
+                  color: '#000',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  minWidth: '120px'
+                }}
+              >
+                <option value="all">All Time</option>
+                {(() => {
+                  const months = [];
+                  const now = new Date();
+                  for (let i = 0; i < 24; i++) {
+                    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                    const year = d.getFullYear();
+                    const month = d.getMonth() + 1;
+                    const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+                    const monthName = `${MONTH_NAMES[month - 1]} ${year}`;
+                    months.push(<option key={monthStr} value={monthStr}>{monthName}</option>);
+                  }
+                  return months;
+                })()}
+              </select>
+            </div>
           </div>
           
           <p style={{ fontSize: '14px', color: '#95a5a6', margin: '0', fontStyle: 'italic' }}>💡 Tip: Use the dropdown above to view analysis for a specific month or all time</p>
         </div>
 
-        {monthlyTrendData.length > 0 && (<div style={styles.sectionContainer}><h3 style={styles.sectionTitle}>Monthly Spending Trend (Last 12 Months)</h3><p style={{ fontSize: '12px', color: '#7f8c8d', margin: '0 0 12px 0' }}>Red line = Expenses, Green line = Income. Hover over points to see exact amounts.</p><ResponsiveContainer width="100%" height={350}><LineChart data={monthlyTrendData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis tickFormatter={(value) => `RM${value}`} /><Tooltip formatter={(value) => formatCurrency(value)} /><Legend wrapperStyle={{ paddingTop: '12px' }} /><Line type="monotone" dataKey="spent" stroke="#e74c3c" name="Spending" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} /><Line type="monotone" dataKey="income" stroke="#27ae60" name="Income" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} /></LineChart></ResponsiveContainer></div>)}
+        {monthlyTrendData.length > 0 && (<div style={styles.sectionContainer}><h3 style={styles.sectionTitle}>Monthly Spending Trend (Last 12 Months)</h3><p style={{ fontSize: '12px', color: '#7f8c8d', margin: '0 0 12px 0' }}>Red line = Expenses, Green line = Income. Hover over points to see exact amounts.</p><ResponsiveContainer width="100%" height={350}><LineChart data={monthlyTrendData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis tickFormatter={(value) => `${value}`} /><Tooltip formatter={(value) => formatCurrency(value)} /><Legend wrapperStyle={{ paddingTop: '12px' }} /><Line type="monotone" dataKey="spent" stroke="#e74c3c" name="Spending" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} /><Line type="monotone" dataKey="income" stroke="#27ae60" name="Income" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} /></LineChart></ResponsiveContainer></div>)}
 
         <p style={{ fontSize: '13px', color: '#7f8c8d', marginBottom: '16px', fontStyle: 'italic' }}>Budgets follow a monthly cycle and reset at the beginning of each month</p>
 
         <SummaryCards {...summaryData} />
         
-        {categoryChartData.length > 0 && (<div style={styles.sectionContainer}><h3 style={styles.sectionTitle}>Top Category Spending</h3><p style={{ fontSize: '12px', color: '#7f8c8d', margin: '0 0 12px 0' }}>Red bars show expenses, green bars show income by category. Sorted by highest spending first.</p><div style={{ ...styles.chartContainer, width: '100%', padding: 0, marginBottom: 0 }}><ResponsiveContainer width="100%" height={500}><BarChart data={categoryChartData} margin={{ top: 20, right: 10, left: 40, bottom: 5 }} barCategoryGap="20%"><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" angle={0} textAnchor="middle" height={60} interval={0} padding={{ left: 30, right: 30 }} /><YAxis domain={[0, 'dataMax + 10']} tickFormatter={(value) => `RM${value}`} /><Tooltip formatter={(value) => formatCurrency(value)} /><Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px' }} /><Bar dataKey="spent" fill="#e74c3c" name="Expense" radius={[4, 4, 0, 0]} /><Bar dataKey="income" fill="#27ae60" name="Income" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div></div>)}
+        {categoryChartData.length > 0 && (<div style={styles.sectionContainer}><h3 style={styles.sectionTitle}>Top Category Spending</h3><p style={{ fontSize: '12px', color: '#7f8c8d', margin: '0 0 12px 0' }}>Red bars show expenses, green bars show income by category. Sorted by highest spending first.</p><div style={{ ...styles.chartContainer, width: '100%', padding: 0, marginBottom: 0 }}><ResponsiveContainer width="100%" height={500}><BarChart data={categoryChartData} margin={{ top: 20, right: 10, left: 40, bottom: 5 }} barCategoryGap="20%"><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" angle={0} textAnchor="middle" height={60} interval={0} padding={{ left: 30, right: 30 }} /><YAxis domain={[0, 'dataMax + 10']} tickFormatter={(value) => formatCurrency(value)} /><Tooltip formatter={(value) => formatCurrency(value)} /><Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px' }} /><Bar dataKey="spent" fill="#e74c3c" name="Expense" radius={[4, 4, 0, 0]} /><Bar dataKey="income" fill="#27ae60" name="Income" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div></div>)}
+  {categoryChartData.length > 0 && (<div style={styles.sectionContainer}><h3 style={styles.sectionTitle}>Top Category Spending</h3><p style={{ fontSize: '12px', color: '#7f8c8d', margin: '0 0 12px 0' }}>Red bars show expenses, green bars show income by category. Sorted by highest spending first.</p><div style={{ ...styles.chartContainer, width: '100%', padding: 0, marginBottom: 0 }}><ResponsiveContainer width="100%" height={500}><BarChart data={categoryChartData} margin={{ top: 20, right: 10, left: 40, bottom: 5 }} barCategoryGap="20%"><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" angle={0} textAnchor="middle" height={60} interval={0} padding={{ left: 30, right: 30 }} /><YAxis domain={[0, 'dataMax + 10']} tickFormatter={(value) => `${value}`} /><Tooltip formatter={(value) => formatCurrency(value)} /><Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px' }} /><Bar dataKey="spent" fill="#e74c3c" name="Expense" radius={[4, 4, 0, 0]} /><Bar dataKey="income" fill="#27ae60" name="Income" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div></div>)}
 
         {categoryChartData.length > 0 && (<div style={styles.sectionContainer}><h3 style={styles.sectionTitle}>Category Breakdown</h3><p style={{ fontSize: '12px', color: '#7f8c8d', margin: '0 0 12px 0' }}>Detailed expense and income breakdown by category</p><div style={styles.tableWrapper}><table style={styles.table}><thead style={styles.tableHead}><tr><th style={styles.tableHeaderCell('left')}>Category</th><th style={styles.tableHeaderCell('right')}>Expenses</th><th style={styles.tableHeaderCell('right')}>Income</th><th style={styles.tableHeaderCell('right')}>Net</th></tr></thead><tbody>{categoryChartData.map((row, idx) => (<tr key={row.name} style={{ transition: 'background-color 0.2s ease' }} onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f0f4f8'; }} onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#ffffff' : '#f9f9f9'; }}><td style={styles.tableCell('left', idx)}>{row.name}</td><td style={{...styles.tableCell('right', idx), color: '#e74c3c', fontWeight: '600'}}>{formatCurrency(row.spent)}</td><td style={{...styles.tableCell('right', idx), color: '#27ae60', fontWeight: '600'}}>{formatCurrency(row.income)}</td><td style={{...styles.tableCell('right', idx), fontWeight: '600', color: (row.income - row.spent) >= 0 ? '#27ae60' : '#e74c3c'}}>{formatCurrency(row.income - row.spent)}</td></tr>))}</tbody></table></div></div>)}
 

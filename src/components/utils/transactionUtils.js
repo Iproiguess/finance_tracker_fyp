@@ -17,13 +17,10 @@ export const styles = {
 };
 
 /**
- * Format amount as Malaysian Ringgit currency
+ * Format amount as currency
  */
 export const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-MY', { 
-    style: 'currency', 
-    currency: 'MYR' 
-  }).format(amount);
+  return amount.toFixed(2);
 };
 
 /**

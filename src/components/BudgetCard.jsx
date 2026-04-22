@@ -1,12 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { styles } from './styles/budgetStyles';
+import { formatCurrency } from '../config/constants';
 import { 
   getCurrentSpendingByBudget,
   getProgressColor, 
   getProgressPercentage,
   getEffectiveBudget,
   getBudgetPeriodDisplay,
-  MONTH_NAMES 
+  MONTH_NAMES,
+  getCurrentSpending
 } from './utils/budgetUtils';
 
 export default function BudgetCard({
@@ -18,6 +20,8 @@ export default function BudgetCard({
   onDelete
 }) {
   const [selectedBadges, setSelectedBadges] = useState({});
+  const [selectedMonth, setSelectedMonth] = useState(budget.month);
+  const [selectedYear, setSelectedYear] = useState(budget.year);
 
   const categoryIds = useMemo(() => budget.category_ids || [], [budget.category_ids]);
   
@@ -37,11 +41,8 @@ export default function BudgetCard({
   }, [selectedBadges, selectedCategories, categoryIds, budget.budget_id]);
 
   const currentSpending = useMemo(() => {
-    return getCurrentSpendingByBudget(
-      { ...budget, category_ids: selectedCategoryIds },
-      transactions
-    );
-  }, [selectedCategoryIds, budget, transactions]);
+    return getCurrentSpending(selectedCategoryIds, selectedMonth, selectedYear, transactions);
+  }, [selectedCategoryIds, selectedMonth, selectedYear, transactions]);
 
   const effectiveBudget = useMemo(() => {
     return getEffectiveBudget(budget, budgets, transactions);
@@ -77,12 +78,34 @@ export default function BudgetCard({
         </h3>
         <div style={styles.actions}>
           <button
-            data-budget-id={budget.budget_id}
             onClick={() => onEdit(budget)}
-            style={{ display: 'none' }}
-            tabIndex={-1}
-            aria-hidden="true"
-          >Hidden Edit</button>
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#2176ae',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 6,
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: 'pointer',
+              marginRight: 8,
+              transition: 'all 0.2s ease',
+              boxShadow: '0 2px 8px rgba(33, 118, 174, 0.2)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#1a5a8a';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(33, 118, 174, 0.3)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#2176ae';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(33, 118, 174, 0.2)';
+            }}
+            title="Edit this budget"
+          >
+            Edit
+          </button>
           <button onClick={() => onDelete(budget)} 
             style={styles.deleteButton}
             onMouseEnter={(e) => {
@@ -103,6 +126,74 @@ export default function BudgetCard({
 
       <div style={styles.budgetDetails}>
         <p style={styles.period}>Date created: {getBudgetPeriodDisplay(budget)}</p>
+        
+        <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#f5f8fa', borderRadius: '6px' }}>
+          <p style={{ margin: '0 0 8px 0', color: '#000', fontSize: 13, fontWeight: '600', textTransform: 'uppercase' }}>
+            View Expenses By Month
+          </p>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <select 
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              style={{
+                padding: '6px 10px',
+                fontSize: 13,
+                borderRadius: '4px',
+                border: '1px solid #d3d6de',
+                backgroundColor: '#fff',
+                cursor: 'pointer',
+                color: '#000'
+              }}
+            >
+              {MONTH_NAMES.map((name, idx) => (
+                <option key={idx} value={idx + 1}>{name}</option>
+              ))}
+            </select>
+            <select 
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              style={{
+                padding: '6px 10px',
+                fontSize: 13,
+                borderRadius: '4px',
+                border: '1px solid #d3d6de',
+                backgroundColor: '#fff',
+                cursor: 'pointer',
+                width: '80px',
+                color: '#000'
+              }}
+            >
+              {[...Array(5)].map((_, i) => {
+                const year = new Date().getFullYear() - 2 + i;
+                return <option key={year} value={year}>{year}</option>;
+              })}
+            </select>
+            <button
+              onClick={() => {
+                setSelectedMonth(budget.month);
+                setSelectedYear(budget.year);
+              }}
+              style={{
+                padding: '6px 12px',
+                fontSize: 12,
+                backgroundColor: '#e3e7ed',
+                border: '1px solid #d3d6de',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: 500,
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#d3d6de';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#e3e7ed';
+              }}
+            >
+              Reset
+            </button>
+          </div>
+        </div>
         
         <div style={styles.categoriesSection}>
           <p style={{ margin: '0 0 8px 0', color: '#000', fontSize: 13, fontWeight: '600', textTransform: 'uppercase' }}>
@@ -137,11 +228,11 @@ export default function BudgetCard({
         <div style={styles.amounts}>
           <div style={{...styles.amountRow, marginBottom: '8px', padding: '8px', backgroundColor: '#f9f9f9', borderRadius: '4px'}}>
             <span style={{ fontWeight: '600', color: '#333' }}>Spent:</span>
-            <span style={{ fontWeight: '700', color: '#007bff' }}>RM{currentSpending.toFixed(2)}</span>
+            <span style={{ fontWeight: '700', color: '#007bff' }}>{formatCurrency(currentSpending)}</span>
           </div>
           <div style={{...styles.amountRow, marginBottom: '8px', padding: '8px', backgroundColor: '#f9f9f9', borderRadius: '4px'}}>
             <span style={{ fontWeight: '600', color: '#333' }}>Limit:</span>
-            <span style={{ fontWeight: '700', color: '#007bff' }}>RM{effectiveBudget.toFixed(2)}</span>
+            <span style={{ fontWeight: '700', color: '#007bff' }}>{formatCurrency(effectiveBudget)}</span>
           </div>
           <div style={{...styles.amountRow, padding: '8px', backgroundColor: '#f0f8ff', borderRadius: '4px'}}>
             <span style={{ fontWeight: '600', color: '#333' }}>Remaining:</span>
@@ -150,7 +241,7 @@ export default function BudgetCard({
               fontSize: '16px',
               color: isOverBudget ? '#dc3545' : '#28a745' 
             }}>
-              RM{remaining.toFixed(2)}
+              {formatCurrency(remaining)}
             </span>
           </div>
         </div>

@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useTransactions } from '../hooks/usetransactions';
 import { styles, getInitialFormData, getTypeButtonStyle } from './styles/addTransactionStyles';
+import { validateAndSanitize } from '../utils/validation';
 
+// Modal form for adding or editing a transaction
 export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   const { addTransaction, updateTransaction } = useTransactions();
   const [formData, setFormData] = useState(() => getInitialFormData(editingTransaction));
@@ -10,15 +12,27 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   const [error, setError] = useState('');
   const [hoveredBtn, setHoveredBtn] = useState(null);
 
+  // Handle form submission for add/edit
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
+    // Validate required fields
     if (!categoryId) {
       setError('Please select a valid category before adding a transaction.');
       setLoading(false);
       return;
+    }
+    // Validate and sanitize fields
+    const fieldsToValidate = ['amount', 'description', 'date', 'type'];
+    for (const field of fieldsToValidate) {
+      const result = validateAndSanitize(field, formData[field]);
+      if (!result.isValid) {
+        setError(result.error || `Invalid ${field}`);
+        setLoading(false);
+        return;
+      }
     }
 
     try {
@@ -28,13 +42,11 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
         amount,
         category_id: categoryId // Ensure this matches your DB column name
       };
-
       if (editingTransaction) {
         await updateTransaction(editingTransaction.transaction_id, transaction);
       } else {
         const { data: { user } } = await supabase.auth.getUser();
         transaction.user_id = user.id;
-        
         await addTransaction(transaction);
       }
       onClose();
@@ -45,9 +57,11 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
     }
   };
 
+  // Handle input changes and reset error state
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    setError('');
   };
 
   return (
@@ -96,7 +110,7 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
               </div>
             </div>
             <div style={styles.field}>
-              <label style={styles.label}>Amount (RM)</label>
+              <label style={styles.label}>Amount</label>
               <input
                 type="number"
                 name="amount"
