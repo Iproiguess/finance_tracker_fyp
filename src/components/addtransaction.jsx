@@ -88,7 +88,13 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
             &times;
           </button>
         </div>
-        <style>{`.category-explorer-animated-btn, [aria-label='Close'] { outline: none !important; }`}</style>
+        <style>{`
+          .category-explorer-animated-btn, [aria-label='Close'] { outline: none !important; }
+          input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0) brightness(0);
+            cursor: pointer;
+          }
+        `}</style>
         <div style={styles.content}>
           {error && <div style={styles.errorBox}>{error}</div>}
           <form onSubmit={handleSubmit} style={styles.form} autoComplete="off">
