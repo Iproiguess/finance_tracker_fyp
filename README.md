@@ -21,7 +21,7 @@ A modern, feature-rich web application for tracking personal finances. Manage tr
 ### 📝 **Transaction Management**
 - Add income and expense transactions with categories and dates
 - Transaction filtering by category, date range, and budget
-- Organized transaction history view with pagination
+- Organized transaction history view
 - Category-based transaction management
 
 ### 🏷️ **Category Management**
@@ -202,7 +202,6 @@ my-finance-tracker/
 
 - **Memoized Computations**: Uses `useMemo` for expensive calculations
 - **Optimized Filtering**: Efficient category and budget filtering logic
-- **Pagination**: Transaction lists support pagination for large datasets
 - **Lazy Evaluation**: Modal and advanced features load on demand
 
 ---

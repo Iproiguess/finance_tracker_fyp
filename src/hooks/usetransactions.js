@@ -25,7 +25,6 @@ export function useTransactions() {
       if (categoryId) {
         query = query.eq('category_id', categoryId);
       }
-      // TODO: Add pagination if transaction count grows large
       const { data, error } = await query.order('date', { ascending: false });
       if (error) throw error;
       setTransactions(data || []);
