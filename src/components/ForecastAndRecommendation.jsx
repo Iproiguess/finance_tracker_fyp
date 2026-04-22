@@ -149,11 +149,11 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div style={{ background: '#fff', padding: '12px', borderRadius: 6, borderLeft: '4px solid #e74c3c' }}>
               <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 4 }}>Average Current Monthly</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#232323' }}>{formatCurrency(impactSummary.currentMonthly)}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#232323' }}>{impactSummary.type === 'income' ? '+' : impactSummary.type === 'expense' ? '-' : ''}{impactSummary.currentMonthly.toFixed(2)}</div>
             </div>
             <div style={{ background: '#fff', padding: '12px', borderRadius: 6, borderLeft: '4px solid #27ae60' }}>
               <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 4 }}>Simulated Average Monthly</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#232323' }}>{formatCurrency(impactSummary.simulatedMonthly)}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#232323' }}>{impactSummary.type === 'income' ? '+' : impactSummary.type === 'expense' ? '-' : ''}{impactSummary.simulatedMonthly.toFixed(2)}</div>
             </div>
           </div>
           <div style={{ marginTop: 12, padding: '12px', background: '#fff', borderRadius: 6, textAlign: 'center' }}>
@@ -163,7 +163,7 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
               fontWeight: 700, 
               color: impactSummary.monthlyDifference >= 0 ? '#27ae60' : '#e74c3c'
             }}>
-              {impactSummary.monthlyDifference >= 0 ? '+' : ''}{formatCurrency(impactSummary.monthlyDifference)}
+              {impactSummary.monthlyDifference >= 0 ? '+' : ''}{impactSummary.monthlyDifference.toFixed(2)}
               {' '} ({impactSummary.type})
             </div>
           </div>
@@ -174,7 +174,7 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
               fontWeight: 700, 
               color: impactSummary.cumulativeIn3Months >= 0 ? '#27ae60' : '#e74c3c'
             }}>
-              {impactSummary.cumulativeIn3Months >= 0 ? '+' : ''}{formatCurrency(impactSummary.cumulativeIn3Months)}
+              {impactSummary.cumulativeIn3Months >= 0 ? '+' : ''}{impactSummary.cumulativeIn3Months.toFixed(2)}
             </div>
           </div>
         </div>
