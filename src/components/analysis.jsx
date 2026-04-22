@@ -31,7 +31,7 @@ export function Analysis() {
 
   const { loading, selectedBudgetIds, setSelectedBudgetIds, toggleBudgetSelection, filteredBudgets, summaryData, monthlyTableData, categoryChartData, monthlyTrendData, showScenarioModal, setShowScenarioModal, simulationResult, setSimulationResult } = useAnalysisData(budgets, transactions, categories, budgetsLoading, transactionsLoading, categoriesLoading, selectedStartMonth, selectedEndMonth);
 
-  if (loading) return <div style={styles.container}><div style={{ padding: '40px', textAlign: 'center' }}>Loading analysis...</div></div>;
+  if (loading) return <div style={styles.container}><div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: '#333', fontWeight: 500 }}>Loading analysis...</div></div>;
 
   const handleSimulate = ({ mode, value, simulateType, selectedBudgetIds: modalBudgetIds }) => {
     // Use the budget IDs from the modal if provided, otherwise use component state

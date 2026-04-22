@@ -75,7 +75,7 @@ export function CategoryExplorer() {
   };
 
 
-  if (catsLoading) return <div style={styles.loading}>Loading categories...</div>;
+  if (catsLoading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontSize: 16, color: '#333', fontWeight: 500 }}>Loading categories...</div>;
 
   const handleCloseCategoryManager = async () => {
     setShowCategoryManager(false);
@@ -438,7 +438,7 @@ export function CategoryExplorer() {
 
         <div style={styles.list}>
           {txnLoading ? (
-            <div style={styles.loading}>Loading transactions...</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '400px', fontSize: 16, color: '#333', fontWeight: 500 }}>Loading transactions...</div>
           ) : !selectedCategory ? (
             <div style={styles.empty}><p>Please select a category from the left.</p></div>
           ) : transactions.length === 0 ? (

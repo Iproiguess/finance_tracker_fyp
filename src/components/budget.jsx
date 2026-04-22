@@ -162,7 +162,7 @@ export default function BudgetPage() {
   }, [budgets]);
 
   if (budgetsLoading || categoriesLoading) {
-    return <div style={styles.loading}>Loading budget...</div>;
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontSize: 16, color: '#333', fontWeight: 500 }}>Loading budget...</div>;
   }
 
   return (

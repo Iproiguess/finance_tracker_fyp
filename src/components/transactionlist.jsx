@@ -4,7 +4,7 @@ import { styles, formatCurrency, getTransactionColor, getTransactionSign, format
 export function TransactionList({ onAddClick }) {
   const { transactions, loading, error, deleteTransaction } = useTransactions();
 
-  if (loading) return <div style={styles.status}>Loading transactions...</div>;
+  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontSize: 16, color: '#333', fontWeight: 500 }}>Loading transactions...</div>;
   if (error) return <div style={styles.status}>Error: {error}</div>;
 
   return (
