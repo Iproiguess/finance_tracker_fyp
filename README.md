@@ -80,9 +80,22 @@ A modern, feature-rich web application for tracking personal finances. Manage tr
    ```
 
 3. **Setup environment variables**
+   
+   **On macOS/Linux:**
    ```bash
    cp .env.example .env.local
    ```
+   
+   **On Windows (PowerShell):**
+   ```powershell
+   Copy-Item .env.example .env.local
+   ```
+   
+   **On Windows (CMD):**
+   ```cmd
+   copy .env.example .env.local
+   ```
+   
    Then edit `.env.local` with your Supabase credentials:
    ```
    VITE_SUPABASE_URL=your_supabase_url
@@ -101,6 +114,13 @@ A modern, feature-rich web application for tracking personal finances. Manage tr
    npm run dev
    ```
    Open http://localhost:5173 in your browser
+
+### Running the app again (after first setup)
+   ```bash
+   cd my-finance-tracker
+   npm run dev
+   ```
+   No need to clone, install dependencies, or setup environment variables again.
 
 ---
 
