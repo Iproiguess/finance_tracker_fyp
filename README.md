@@ -37,6 +37,8 @@ A modern, feature-rich web application for tracking personal finances. Manage tr
   - Impact on budget remaining amounts
   - Category spending projections
 - Compare current vs. simulated scenarios instantly
+- Forecasting to show 6 months in the future based on average trend on the past 12 months (or available data)
+  - Suggestion to suggest the user to avoid reaching the budget limit too early.
 
 ### 🔐 **User Authentication**
 - Secure email/password authentication
