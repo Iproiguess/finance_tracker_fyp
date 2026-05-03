@@ -1,6 +1,6 @@
 # 💰 Personal Finance Tracker
 
-A modern, feature-rich web application for tracking personal finances. Manage transactions, budgets, categories, and visualize your financial data with advanced analytics and "what-if" scenario simulation.
+Welcome! This is a modern, intuitive web application designed to help you take control of your finances. Track every dollar you spend, create custom budgets, and use advanced analytics to understand your spending patterns. Best of all, test different financial scenarios with our "what-if" simulation feature to plan ahead confidently.
 
 ## 🌟 Key Features
 
@@ -62,121 +62,220 @@ A modern, feature-rich web application for tracking personal finances. Manage tr
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 16+ 
-- npm or yarn
-- Supabase account
+Before getting started, make sure you have:
+- **Node.js 16+** (download from [nodejs.org](https://nodejs.org))
+- **npm or yarn** (comes with Node.js)
+- **A free Supabase account** (we'll create one in the setup)
 
-### Installation
+### Step-by-Step Setup
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd my-finance-tracker
-   ```
+#### 1️⃣ **Clone the Repository**
+```bash
+git clone <repository-url>
+cd my-finance-tracker
+```
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+#### 2️⃣ **Install Dependencies**
+```bash
+npm install
+```
+This downloads all the libraries the app needs. It might take a minute or two.
 
-3. **Setup environment variables**
-   
-   **On macOS/Linux:**
-   ```bash
-   cp .env.example .env.local
-   ```
-   
-   **On Windows (PowerShell):**
-   ```powershell
-   Copy-Item .env.example .env.local
-   ```
-   
-   **On Windows (CMD):**
-   ```cmd
-   copy .env.example .env.local
-   ```
-   
-   Then edit `.env.local` with your Supabase credentials:
-   ```
-   VITE_SUPABASE_URL=your_supabase_url
-   VITE_SUPABASE_ANON_KEY=your_anon_key
-   ```
+#### 3️⃣ **Create Your Supabase Project**
 
-4. **Setup Supabase database**
-   - Log in to your Supabase project
-   - Navigate to SQL Editor
-   - Run the SQL scripts in order:
-     - `supabase_setup.sql` - Creates tables, policies, and RLS
-     - `supabase_migration_budget_periods.sql` - Budget period migrations
+Don't have Supabase yet? No worries, it's free!
 
-5. **Run development server**
-   ```bash
-   npm run dev
-   ```
-   Open http://localhost:5173 in your browser
+1. Go to [supabase.com](https://supabase.com) and sign up
+2. Click "New Project"
+3. Choose a name (e.g., "my-finance-tracker")
+4. Create a strong password and save it somewhere safe
+5. Choose your region (pick one closest to you)
+6. Wait for the project to be created (usually takes 1-2 minutes)
 
-### Running the app again (after first setup)
-   ```bash
-   cd my-finance-tracker
-   npm run dev
-   ```
-   No need to clone, install dependencies, or setup environment variables again.
+#### 4️⃣ **Get Your Supabase Credentials**
+
+1. In your Supabase project, click **Settings** (gear icon) in the sidebar
+2. Go to **API** tab
+3. Copy your **Project URL** (looks like `https://xxxx.supabase.co`)
+4. Copy your **Anon Key** (a long string starting with `eyJ...`)
+
+#### 5️⃣ **Setup Environment Variables**
+
+Create a `.env.local` file in your project root with your Supabase credentials:
+
+**On macOS/Linux:**
+```bash
+cp .env.example .env.local
+```
+
+**On Windows (PowerShell):**
+```powershell
+Copy-Item .env.example .env.local
+```
+
+**On Windows (CMD):**
+```cmd
+copy .env.example .env.local
+```
+
+Now open `.env.local` in your text editor and fill in your Supabase details:
+```
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key-here
+```
+
+#### 6️⃣ **Setup Your Database**
+
+This is important! The app needs database tables to store your data.
+
+1. Go back to your Supabase project
+2. Click **SQL Editor** in the sidebar
+3. Click **New Query**
+4. Open the file `supabase_setup.sql` from this project
+5. Copy and paste the entire content into the SQL Editor
+6. Click **Run** (or press Ctrl/Cmd + Enter)
+7. You should see "Success" messages - that's great!
+
+Now repeat the process for the second file:
+1. Click **New Query** again
+2. Open `supabase_migration_budget_periods.sql`
+3. Copy and paste it into the SQL Editor
+4. Click **Run**
+
+✅ Your database is now ready!
+
+#### 7️⃣ **Enable Email Authentication**
+
+This allows users to sign up and reset their passwords:
+
+1. In your Supabase project, go to **Authentication** → **Providers**
+2. Find **Email** and make sure it's **Enabled**
+3. Click on Email to expand it
+4. Check "Confirm email" for extra security (recommended)
+
+#### 8️⃣ **Start the App**
+
+```bash
+npm run dev
+```
+
+You should see something like:
+```
+Local:            http://localhost:5173/
+```
+
+Open that URL in your browser and you're done! 🎉
+
+### Running the App Again (Next Time)
+
+Once everything is set up, you just need:
+```bash
+npm run dev
+```
+
+That's it! No need to repeat the setup steps.
 
 ---
 
-## 📖 Usage Guide
+## 📖 How to Use This App
 
-### Login & Authentication
-1. Sign up with email and password
-2. Verify your email (check inbox for verification link)
-3. Login with your credentials
+### Getting Started (First Time)
 
-### Creating Your First Budget
-1. Navigate to **Budgets** section
+**Creating an Account**
+1. Click "Sign Up" on the login page
+2. Enter your email and create a strong password (at least 10 characters)
+3. Check your email inbox for a verification link and click it
+4. You're in! 🎉
+
+**Forgot Your Password?**
+- Click "Forgot Password" on the login page
+- Enter your email
+- Check your inbox for a reset link
+
+### 💳 Your First Budget
+
+Think of a budget as a "spending limit" for a category in a specific month.
+
+1. Click on **Budgets** in the sidebar
 2. Click "Create New Budget"
-3. Enter budget name, select month/year
-4. Set monthly limit
-5. Select categories to track in this budget
-6. Click "Save Budget"
+3. Give it a name (e.g., "Groceries - May 2026")
+4. Pick the month and year
+5. Set your spending limit (e.g., $500)
+6. Choose which categories this budget covers (you can pick multiple!)
+7. Click "Save Budget" ✓
 
-### Adding Transactions
+**Pro Tip:** You can have multiple budgets! Create one for groceries, another for entertainment, and so on.
+
+### 📝 Adding Your Spending
+
+Every time you spend money, add it here:
+
 1. Go to **Transactions**
 2. Click "Add Transaction"
 3. Fill in:
-   - Type (Income/Expense)
-   - Amount
-   - Category
-   - Date
-   - Description (optional)
-4. Click "Add"
+   - **Type**: Choose "Expense" (for money you spent) or "Income" (for money you earned)
+   - **Amount**: How much did you spend? (e.g., 45.99)
+   - **Category**: What did you spend it on? (Groceries, Gas, Coffee, etc.)
+   - **Date**: When did this happen?
+   - **Description**: Optional note (e.g., "Whole Foods shopping")
+4. Click "Add" and you're done!
 
-### Viewing Analytics
-1. Navigate to **Analysis**
-2. Select budgets from the sidebar (or view all)
-3. View:
-   - Summary cards (totals, remaining)
-   - Category breakdown chart
-   - Monthly spending trend
-   - Budget overview table
+### 📊 Viewing Your Analytics
 
-### Using Scenario Simulation
-1. In **Analysis**, click "Simulate Scenario"
-2. Choose simulation type:
-   - **Percentage**: If spending increases/decreases by X%
-   - **Amount**: Set specific spending amount per category
-3. Adjust values and click "Simulate"
-4. View real-time impact on all charts and tables
-5. Click "Clear Simulation" to return to actual values
+This is where you see the big picture of your finances:
 
-### Managing Categories
-1. Go to **Categories** section
-2. View all your categories
-3. Edit category: Click category → modify name/color → Save
-4. Delete category: Click category → Confirm deletion
+1. Click **Analysis** in the sidebar
+2. **On the left sidebar**: Select which budgets you want to analyze (or leave them all selected for the full picture)
+3. You'll see:
+   - **Summary Cards**: Your total budget, how much you've spent, and how much is left
+   - **Category Chart**: Visual bars showing your biggest spending categories
+   - **Monthly Trend**: A line graph showing your last 12 months of spending patterns
+   - **Budget Overview Table**: Details of each budget
+
+### 🎯 Using Scenario Simulation (The "What-If" Tool)
+
+Want to know what would happen if you spent less? This feature is perfect for planning!
+
+1. In the **Analysis** section, click "Simulate Scenario"
+2. A form appears. Here's what to do:
+   - **Select budgets**: Choose which budgets to test (optional)
+   - **Simulation type**: 
+     - **Percentage**: "What if I reduce expenses by 20%?"
+     - **Amount**: "What if I reduce expenses by exactly $100?"
+   - **Adjust the value**: Enter your number
+3. Click **"Suggest"** button and the app will recommend a reduction based on your habits (optional - or enter your own)
+4. Click "Simulate Scenario" to see the results
+5. Look at the "Impact Summary" to see how this would affect you over 3 months
+6. Click "Clear Simulation" to go back to your real numbers
+
+**Example:** Want to see if cutting dining out by 30% helps? Enter -30% and simulate!
+
+### 🏷️ Managing Your Categories
+
+Categories are how you organize your spending. Your first few might be: Groceries, Gas, Entertainment, etc.
+
+1. Go to **Categories** in the sidebar
+2. **To edit**: Click on a category and change its name or pick a new color
+3. **To delete**: Click on a category, then confirm the deletion
+
+**Creating New Categories** happens when you add a transaction - if a category doesn't exist, you can create it on the fly!
 
 ---
 
-## 📁 Project Structure
+## � Tips & Tricks
+
+**Making the Most of Your Finance Tracker:**
+
+- 📱 **Categories are your friends** - Create specific categories for all your spending types. The more detailed, the better insights you'll get
+- 📊 **Review your trends monthly** - Spend 5 minutes each month checking the Analysis dashboard. You'll start spotting patterns
+- 🎯 **Use budgets for problem areas** - If you overspend on coffee, create a specific budget for it. It helps keep you accountable
+- 🔮 **Test scenarios before big changes** - Before committing to a spending cut, simulate it first to see if it's realistic
+- 🌙 **Budget for the month ahead** - At the beginning of each month, create your budgets. Then throughout the month, just add transactions
+- 💰 **Track income too** - Don't just log expenses! Adding income transactions gives you a complete financial picture
+
+---
+
+## �📁 Project Structure
 
 ```
 my-finance-tracker/
@@ -236,41 +335,61 @@ npm run lint       # Run ESLint
 npm run dev        # Start dev server
 ```
 
-### Common Issues
+### Common Issues & Solutions
 
-**Environment variables not loading?**
-- Ensure `.env.local` exists in project root
-- Restart dev server after editing `.env.local`
-- Variables must be prefixed with `VITE_`
+**🔴 "Error: Cannot find module '@supabase/supabase-js'"**
+- You forgot to run `npm install`! Do that first, then restart your app with `npm run dev`
 
-**Authentication fails?**
-- Verify Supabase project URL and key are correct
-- Check email verification status in Supabase console
-- Ensure RLS policies are enabled
+**🔴 "VITE_SUPABASE_URL is not defined"**
+- Your `.env.local` file is missing or has the wrong name
+- Make sure it's in your project root (same level as `package.json`)
+- Restart the dev server after creating/editing `.env.local`
 
-**Charts not showing?**
-- Verify you have transactions in selected budget
-- Check browser console for data fetch errors
-- Ensure categories are properly linked to transactions
+**🔴 "Authentication fails" or "Invalid credentials"**
+- Double-check your Supabase URL and Anon Key in `.env.local`
+- Make sure you copied the ENTIRE key (they're long strings!)
+- Verify Email authentication is enabled in your Supabase project (Settings → Authentication)
 
----
+**🔴 "Charts aren't showing any data"**
+- Add some transactions first! Charts need data to display
+- Make sure transactions are linked to the correct categories
+- Check the browser console (F12) for any error messages
 
-## 📝 License
+**🔴 "Can't log in / Email verification not working"**
+- Check your email spam/junk folder for the verification email
+- Make sure "Confirm email" is enabled in Supabase (Settings → Authentication → Email)
+- Try signing up with a different email address
 
-This project is created for educational purposes.
-
----
-
-## 👤 Author
-
-Created as a Final Year Project (FYP) - Personal Finance Tracker Application
-
----
-
-## 🤝 Support
-
-For issues or questions, please refer to the troubleshooting section above or check the Supabase console for detailed error logs.
+**🔴 "Budget/Transaction won't save"**
+- Check your browser console for error messages (press F12)
+- Verify your Supabase project is still active and has available connections
+- Make sure all required fields are filled out
 
 ---
 
-**Last Updated**: April 2026
+## � About This Project
+
+This is a personal finance application built as a **Final Year Project (FYP)**. It's designed to be intuitive, secure, and help real people take control of their finances.
+
+---
+
+## 🤝 Questions or Issues?
+
+1. **Check the troubleshooting section above** - it covers the most common issues
+2. **Check the Supabase console** - it often has helpful error messages
+3. **Review the browser console** - Press F12 to open Developer Tools and look for error messages
+4. **Check your `.env.local` file** - Make sure it has the correct values
+
+---
+
+## 📄 License
+
+This project is created for educational and open-source purposes.
+
+---
+
+**Happy budgeting! 💰** 
+
+Made with ❤️ for better financial awareness
+
+**Last Updated**: May 2026
