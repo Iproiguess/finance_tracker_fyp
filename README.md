@@ -153,6 +153,8 @@ This allows users to sign up and reset their passwords:
 3. Click on Email to expand it
 4. Check "Confirm email" for extra security (recommended)
 
+**⚠️ Important Note**: Email verification links (for signup confirmation and password reset) only work on the **same device** where the app is running. This is because the app uses `http://localhost:5173` as the redirect URL during development. If you want to test with other devices or deploy to production, you'll need to update the redirect URLs in Supabase Authentication settings.
+
 #### 8️⃣ **Start the App**
 
 ```bash
