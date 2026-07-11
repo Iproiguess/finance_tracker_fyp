@@ -14,7 +14,6 @@ export function SummaryCards({
 
   return (
     <div style={analysisStyles.summaryContainer}>
-      {/* Budget Summary Card */}
       <div style={summaryStyles.card}>
         <h3 style={summaryStyles.title}>Budget Summary</h3>
         <div style={summaryStyles.row}>
@@ -39,7 +38,6 @@ export function SummaryCards({
         </div>
       </div>
 
-      {/* Transactions Card */}
       <div style={analysisStyles.transactionCard}>
         <h3 style={analysisStyles.cardTitle}>Transactions</h3>
         <div style={analysisStyles.cardRow}>

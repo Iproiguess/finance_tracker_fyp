@@ -58,20 +58,50 @@ ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.budgets ENABLE ROW LEVEL SECURITY;
 
 -- Policies for users
-CREATE POLICY "Users can only see their own verified row" ON public.users
-  FOR ALL USING (auth.uid() = id AND verified = true);
+CREATE POLICY "Users can select their own verified row" ON public.users
+  FOR SELECT USING (auth.uid() = id AND verified = true);
+
+CREATE POLICY "Users can update their own verified row" ON public.users
+  FOR UPDATE USING (auth.uid() = id AND verified = true) WITH CHECK (auth.uid() = id AND verified = true);
 
 -- Policies for categories
-CREATE POLICY "Users can manage their own categories" ON public.categories
-  FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can select their own categories" ON public.categories
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own categories" ON public.categories
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own categories" ON public.categories
+  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own categories" ON public.categories
+  FOR DELETE USING (auth.uid() = user_id);
 
 -- Policies for transactions
-CREATE POLICY "Users can manage their own transactions" ON public.transactions
-  FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can select their own transactions" ON public.transactions
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own transactions" ON public.transactions
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own transactions" ON public.transactions
+  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own transactions" ON public.transactions
+  FOR DELETE USING (auth.uid() = user_id);
 
 -- Policies for budgets
-CREATE POLICY "Users can manage their own budgets" ON public.budgets
-  FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can select their own budgets" ON public.budgets
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own budgets" ON public.budgets
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own budgets" ON public.budgets
+  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own budgets" ON public.budgets
+  FOR DELETE USING (auth.uid() = user_id);
 
 -- Create indexes for better performance
 CREATE INDEX idx_categories_user_id ON public.categories(user_id);
@@ -90,7 +120,7 @@ BEGIN
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = public;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 

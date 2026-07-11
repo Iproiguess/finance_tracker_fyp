@@ -41,14 +41,12 @@ export function useCategories() {
       .eq('category_id', id)
       .select();
     if (error) throw error;
-    // Update state instantly
     setCategories(prev => prev.map(c => c.category_id === id ? { ...c, ...updates } : c));
     return data ? data[0] : null;
   };
 
   const deleteCategory = async (id, onTransactionsDeleted) => {
     try {
-      // First, get all budgets for the current user
       const { data: { user } } = await supabase.auth.getUser();
       
       const { data: allBudgets, error: fetchError } = await supabase
@@ -70,7 +68,6 @@ export function useCategories() {
         if (deleteError) throw deleteError;
       }
 
-      // Delete all transactions for this category
       const { error: transactionError } = await supabase
         .from('transactions')
         .delete()
@@ -78,12 +75,10 @@ export function useCategories() {
 
       if (transactionError) throw new Error(`Failed to delete transactions: ${transactionError.message}`);
 
-      // Call the callback to refresh transactions if provided
       if (onTransactionsDeleted) {
         await onTransactionsDeleted();
       }
 
-      // Then delete the category itself
       const { error } = await supabase
         .from('categories')
         .delete()

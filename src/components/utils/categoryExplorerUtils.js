@@ -4,9 +4,9 @@ export const styles = {
   sidebar: { width: '260px', backgroundColor: '#23273a', borderRight: '1px solid #2e3347', display: 'flex', flexDirection: 'column', color: '#e7eaf1', height: '100%', minHeight: 0, overflowY: 'hidden' },
   sidebarHeader: { padding: 0, borderBottom: '1px solid #2e3347', display: 'flex', justifyContent: 'center', alignItems: 'center', margin: 0, height: '0px', borderRadius: '0' },
   manageCategoryBtn: {
-    background: '#2e3347',
+    background: '#4a5fef',
     color: '#e7eaf1',
-    border: '1px solid #454d62',
+    border: '1px solid #5a6fff',
     padding: '10px 12px',
     borderRadius: '8px',
     cursor: 'pointer',
@@ -101,4 +101,24 @@ export const getTransactionColor = (type) => {
  */
 export const getTransactionSign = (type) => {
   return type === 'income' ? '+' : '-';
+};
+
+export const groupTransactionsByMonth = (transactions) => {
+  const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const grouped = {};
+  
+  transactions.forEach(tx => {
+    const date = new Date(tx.date);
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const monthLabel = `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+    
+    if (!grouped[monthKey]) {
+      grouped[monthKey] = { label: monthLabel, transactions: [] };
+    }
+    grouped[monthKey].transactions.push(tx);
+  });
+
+  return Object.entries(grouped)
+    .sort(([keyA], [keyB]) => keyB.localeCompare(keyA))
+    .map(([, value]) => value);
 };

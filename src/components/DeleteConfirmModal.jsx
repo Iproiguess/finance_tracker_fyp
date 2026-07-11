@@ -22,7 +22,7 @@ export default function DeleteConfirmModal({
       <div style={styles.modal}>
         <div style={styles.confirmBox}>
           <div style={styles.warningIcon}>⚠️</div>
-          <h4 style={{ margin: '10px 0' }}>
+          <h4 style={{ margin: '10px 0', color: '#000', fontWeight: 700 }}>
             Delete "{budgetDisplayName}" Budget?
           </h4>
           <p style={{ fontSize: '14px', color: '#666' }}>

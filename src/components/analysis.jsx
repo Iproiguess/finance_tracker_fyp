@@ -8,28 +8,83 @@ import { formatCurrency } from './styles/budgetSummaryStyles';
 import { styles, getRemainingColor } from './styles/analysisStyles';
 import { getCurrentSpendingByBudget, MONTH_NAMES } from './utils/budgetUtils';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { ScenarioSimulateButton } from './ScenarioSimulateButton';
 import { ScenarioSimulateModal } from './ScenarioSimulateModal';
 import { ForecastAndRecommendation } from './ForecastAndRecommendation';
+import { HeatmapSection } from './HeatmapModal';
 
-export function Analysis() {
+// Custom tooltip component for trend chart
+const TrendChartTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ backgroundColor: '#fff', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}>
+        <p style={{ margin: '0 0 4px 0', color: '#000', fontWeight: '600' }}>{payload[0].payload.month}</p>
+        {payload.map((entry, index) => (
+          <p key={index} style={{ margin: '2px 0', color: entry.color, fontSize: '12px' }}>
+            {entry.name}: {formatCurrency(entry.value)}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
+export function Analysis({ activeFeatures = { forecast: false, simulation: false, heatmap: false }, setActiveFeatures = () => {}, selectedStartMonth = 'all', selectedEndMonth, fetchTransactions, handleBudgetsChanged = () => {} }) {
   const { budgets, loading: budgetsLoading } = useBudgets();
   const { transactions, loading: transactionsLoading } = useTransactions();
   const { categories, loading: categoriesLoading } = useCategories();
 
   // Get current month in YYYY-MM format
-  const getCurrentMonthString = () => {
+  const getCurrentMonthString = React.useCallback(() => {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     return `${year}-${month}`;
-  };
+  }, []);
 
-  // Month range selection
-  const [selectedStartMonth, setSelectedStartMonth] = React.useState('all');
-  const [selectedEndMonth, setSelectedEndMonth] = React.useState(getCurrentMonthString());
+  // Use current month as default if not provided
+  const finalSelectedEndMonth = selectedEndMonth || getCurrentMonthString();
 
-  const { loading, selectedBudgetIds, setSelectedBudgetIds, toggleBudgetSelection, filteredBudgets, summaryData, monthlyTableData, categoryChartData, monthlyTrendData, showScenarioModal, setShowScenarioModal, simulationResult, setSimulationResult } = useAnalysisData(budgets, transactions, categories, budgetsLoading, transactionsLoading, categoriesLoading, selectedStartMonth, selectedEndMonth);
+  // Store modal state persistently
+  const [modalMode, setModalMode] = React.useState('percent');
+  const [modalValue, setModalValue] = React.useState('');
+  const [modalSimulateType, setModalSimulateType] = React.useState('expense');
+  const [modalSelectedBudgetIds, setModalSelectedBudgetIds] = React.useState(new Set());
+  const [showScenarioModal, setShowScenarioModal] = React.useState(false);
+  const [lastBudgetFetchTime, setLastBudgetFetchTime] = React.useState(0);
+  const simulationInitializedRef = React.useRef(false);
+
+  const { loading, selectedBudgetIds, setSelectedBudgetIds, toggleBudgetSelection, filteredBudgets, summaryData, monthlyTableData, categoryChartData, monthlyTrendData, simulationResult, setSimulationResult } = useAnalysisData(budgets, transactions, categories, budgetsLoading, transactionsLoading, categoriesLoading, selectedStartMonth, finalSelectedEndMonth);
+
+  // Notify parent when selected budgets change
+  React.useEffect(() => {
+    handleBudgetsChanged(selectedBudgetIds);
+  }, [selectedBudgetIds, handleBudgetsChanged]);
+
+  // Refresh transactions when budget selection changes (with throttling)
+  React.useEffect(() => {
+    if (fetchTransactions) {
+      const now = Date.now();
+      // Only fetch if more than 2 seconds have passed since last budget-triggered fetch
+      if (now - lastBudgetFetchTime > 2000) {
+        fetchTransactions();
+        setLastBudgetFetchTime(now);
+      }
+    }
+  }, [selectedBudgetIds, fetchTransactions, lastBudgetFetchTime]);
+
+  // Only open modal on initial toggle ON, not on page returns
+  React.useEffect(() => {
+    if (activeFeatures.simulation && !simulationInitializedRef.current) {
+      setShowScenarioModal(true);
+      simulationInitializedRef.current = true;
+    } else if (!activeFeatures.simulation) {
+      // Close modal and clear simulation when toggled OFF
+      setShowScenarioModal(false);
+      setSimulationResult(null);
+      simulationInitializedRef.current = false;
+    }
+  }, [activeFeatures.simulation]);
 
   if (loading) return <div style={styles.container}><div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: '#333', fontWeight: 500 }}>Loading analysis...</div></div>;
 
@@ -52,14 +107,12 @@ export function Analysis() {
       if (simulateType === 'expense' || simulateType === 'both') {
         const expenseTxs = transactions.filter(tx => tx.category_id === cat.category_id && tx.type === 'expense');
         currentExpense = expenseTxs.reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
-        simulatedExpense = mode === 'percent' ? currentExpense + (currentExpense * (value / 100)) : value;
-        if (simulatedExpense < 0) simulatedExpense = 0;
+        simulatedExpense = mode === 'percent' ? currentExpense + (currentExpense * (value / 100)) : Math.max(0, currentExpense + value);
       }
       if (simulateType === 'income' || simulateType === 'both') {
         const incomeTxs = transactions.filter(tx => tx.category_id === cat.category_id && tx.type === 'income');
         currentIncome = incomeTxs.reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
-        simulatedIncome = mode === 'percent' ? currentIncome + (currentIncome * (value / 100)) : value;
-        if (simulatedIncome < 0) simulatedIncome = 0;
+        simulatedIncome = mode === 'percent' ? currentIncome + (currentIncome * (value / 100)) : Math.max(0, currentIncome + value);
       }
       return { categoryName: cat.category_name, currentExpense: simulateType === 'expense' || simulateType === 'both' ? currentExpense : 0, simulatedExpense: simulateType === 'expense' || simulateType === 'both' ? simulatedExpense : 0, currentIncome: simulateType === 'income' || simulateType === 'both' ? currentIncome : 0, simulatedIncome: simulateType === 'income' || simulateType === 'both' ? simulatedIncome : 0, current: (simulateType === 'expense' || simulateType === 'both' ? currentExpense : 0) + (simulateType === 'income' || simulateType === 'both' ? currentIncome : 0), simulated: (simulateType === 'expense' || simulateType === 'both' ? simulatedExpense : 0) + (simulateType === 'income' || simulateType === 'both' ? simulatedIncome : 0) };
     });
@@ -83,93 +136,74 @@ export function Analysis() {
         </div>
         <div style={styles.budgetListFooter}>
           <button onClick={() => setSelectedBudgetIds(new Set())} style={{ ...styles.clearAllBtn, width: '100%' }} onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#3498db'; e.currentTarget.style.color = 'white'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(52, 152, 219, 0.3)'; }} onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#3498db'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}>Clear All</button>
-          <ScenarioSimulateButton onClick={() => setShowScenarioModal(true)} style={{ width: '100%', marginTop: '4px' }} />
           <div style={styles.budgetHint}>Click on budgets to select multiple and check specific budgets</div>
         </div>
       </div>
-      <ScenarioSimulateModal open={showScenarioModal} onClose={() => setShowScenarioModal(false)} categories={categories} onSimulate={handleSimulate} simulationResult={simulationResult} transactions={transactions} selectedBudgetIds={selectedBudgetIds} allBudgets={budgets} />
+      <ScenarioSimulateModal 
+        open={showScenarioModal} 
+        onClose={() => setShowScenarioModal(false)}
+        onCancel={() => {
+          setShowScenarioModal(false);
+          setActiveFeatures(prev => ({ ...prev, simulation: false }));
+          setSimulationResult(null);
+        }}
+        categories={categories} 
+        onSimulate={handleSimulate} 
+        simulationResult={simulationResult} 
+        transactions={transactions} 
+        selectedBudgetIds={selectedBudgetIds} 
+        allBudgets={budgets}
+        initialMode={modalMode}
+        initialValue={modalValue}
+        initialSimulateType={modalSimulateType}
+        initialModalSelectedBudgetIds={modalSelectedBudgetIds}
+        onModalStateChange={(state) => {
+          setModalMode(state.mode);
+          setModalValue(state.value);
+          setModalSimulateType(state.simulateType);
+          setModalSelectedBudgetIds(state.modalSelectedBudgetIds);
+        }}
+      />
       <div style={styles.mainContent}>
-        {simulationResult && (<div style={{ background: 'linear-gradient(90deg, #ffe259 0%, #ffa751 100%)', color: '#232323', padding: '10px 18px', borderRadius: 10, margin: '0 0 12px 0', fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 2px 8px rgba(255, 174, 81, 0.10)' }}><span><span style={{ marginRight: 10, fontSize: 18 }}>⚡</span><span>Simulation Mode Active — {simulationResult.simulateType === 'both' && 'Both income & expenses simulating'}{simulationResult.simulateType === 'income' && 'Your income simulating'}{simulationResult.simulateType === 'expense' && 'Your expenses simulating'} {simulationResult.mode === 'percent' ? `by ${simulationResult.value > 0 ? '+' : ''}${simulationResult.value}%` : `to ${formatCurrency(simulationResult.value)}`}</span></span><button style={{ background: '#e74c3c', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 16px', fontWeight: 700, fontSize: 14, cursor: 'pointer', marginLeft: 14 }} onClick={() => setSimulationResult(null)}>Clear Simulation</button></div>)}
-        {simulationResult && <ForecastAndRecommendation simulationResult={simulationResult} transactions={transactions} budgets={budgets} selectedBudgetIds={selectedBudgetIds} />}
-        
-        <div style={{ marginBottom: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
-            <h2 style={styles.pageTitle}>Finance Analysis {selectedBudgetIds.size > 0 && `(${selectedBudgetIds.size} budget${selectedBudgetIds.size !== 1 ? 's' : ''})`}</h2>
-            
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <label htmlFor="start-month" style={{ color: '#000' }}>From:</label>
-              <select
-                id="start-month"
-                value={selectedStartMonth}
-                onChange={e => setSelectedStartMonth(e.target.value)}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #bdc3c7',
-                  backgroundColor: '#fff',
-                  color: '#000',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  minWidth: '120px'
-                }}
-              >
-                <option value="all">All Time</option>
-                {(() => {
-                  const months = [];
-                  const now = new Date();
-                  for (let i = 0; i < 24; i++) {
-                    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                    const year = d.getFullYear();
-                    const month = d.getMonth() + 1;
-                    const monthStr = `${year}-${String(month).padStart(2, '0')}`;
-                    const monthName = `${MONTH_NAMES[month - 1]} ${year}`;
-                    months.push(<option key={monthStr} value={monthStr}>{monthName}</option>);
-                  }
-                  return months;
-                })()}
-              </select>
-              <label htmlFor="end-month" style={{ color: '#000' }}>To:</label>
-              <select
-                id="end-month"
-                value={selectedEndMonth}
-                onChange={e => setSelectedEndMonth(e.target.value)}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #bdc3c7',
-                  backgroundColor: '#fff',
-                  color: '#000',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  minWidth: '120px'
-                }}
-              >
-                <option value="all">All Time</option>
-                {(() => {
-                  const months = [];
-                  const now = new Date();
-                  for (let i = 0; i < 24; i++) {
-                    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                    const year = d.getFullYear();
-                    const month = d.getMonth() + 1;
-                    const monthStr = `${year}-${String(month).padStart(2, '0')}`;
-                    const monthName = `${MONTH_NAMES[month - 1]} ${year}`;
-                    months.push(<option key={monthStr} value={monthStr}>{monthName}</option>);
-                  }
-                  return months;
-                })()}
-              </select>
+        {/* SIMULATION NOTIFICATION - Shows when simulation toggle is ON */}
+        {activeFeatures.simulation && simulationResult && (
+          <div style={{ marginBottom: '16px', padding: '12px 16px', background: '#fff3cd', borderRadius: 8, border: '2px solid #ffc107', display: 'flex', alignItems: 'center' }}>
+            <div>
+              <p style={{ margin: 0, color: '#856404', fontWeight: '600', fontSize: '16px' }}>Simulation Mode Active</p>
+              <p style={{ margin: '4px 0 0 0', color: '#856404', fontSize: '14px', opacity: 0.8 }}>
+                Simulating {simulationResult.simulateType} by {simulationResult.mode === 'percent' ? `${simulationResult.value}%` : formatCurrency(simulationResult.value)} • Toggle off to return to actual data.
+              </p>
             </div>
           </div>
-          
-          <p style={{ fontSize: '14px', color: '#95a5a6', margin: '0', fontStyle: 'italic' }}>💡 Tip: Use the dropdown above to view analysis for a specific month or all time</p>
-        </div>
+        )}
 
-        {monthlyTrendData.length > 0 && (<div style={styles.sectionContainer}><h3 style={styles.sectionTitle}>Monthly Spending Trend (Last 12 Months)</h3><p style={{ fontSize: '12px', color: '#7f8c8d', margin: '0 0 12px 0' }}>Red line = Expenses, Green line = Income. Hover over points to see exact amounts.</p><ResponsiveContainer width="100%" height={350}><LineChart data={monthlyTrendData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis tickFormatter={(value) => `${value}`} /><Tooltip formatter={(value) => formatCurrency(value)} /><Legend wrapperStyle={{ paddingTop: '12px' }} /><Line type="monotone" dataKey="spent" stroke="#e74c3c" name="Spending" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} /><Line type="monotone" dataKey="income" stroke="#27ae60" name="Income" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} /></LineChart></ResponsiveContainer></div>)}
+        {/* FORECAST OVERLAY - Shows forecast + impact summary + chart when forecast toggle is ON */}
+        {activeFeatures.forecast && (
+          <>
+            <div style={{ marginBottom: '20px', padding: '16px', background: '#e3f6f5', borderRadius: 8, border: '2px solid #17a2b8' }}>
+              <h2 style={styles.pageTitle}>📊 Forecast</h2>
+              <ForecastAndRecommendation simulationResult={simulationResult} transactions={transactions} budgets={budgets} selectedBudgetIds={selectedBudgetIds} />
+            </div>
+          </>
+        )}
+
+        {/* HEATMAP - Shows annual spending heatmap when heatmap toggle is ON */}
+        {activeFeatures.heatmap && (
+          <HeatmapSection
+            transactions={transactions}
+            categories={categories}
+            simulationResult={simulationResult}
+            budgets={budgets}
+          />
+        )}
+
+        {/* ALWAYS SHOW: Full Stats/Analysis Page */}
+        <>
+          <div style={{ marginBottom: '20px' }}>
+            <h2 style={styles.pageTitle}>Finance Analysis {selectedBudgetIds.size > 0 && `(${selectedBudgetIds.size} budget${selectedBudgetIds.size !== 1 ? 's' : ''})`}</h2>
+          </div>
+          
+          {monthlyTrendData.length > 0 && (<div style={styles.sectionContainer}><h3 style={styles.sectionTitle}>Monthly Spending Trend (Last 12 Months)</h3><p style={{ fontSize: '12px', color: '#7f8c8d', margin: '0 0 12px 0' }}>Red line = Expenses, Green line = Income. Hover over points to see exact amounts.</p><ResponsiveContainer width="100%" height={350}><LineChart data={monthlyTrendData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }} isAnimationActive={true} animationDuration={800} animationEasing="ease-in-out"><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis tickFormatter={(value) => `${value}`} /><Tooltip content={<TrendChartTooltip />} /><Legend wrapperStyle={{ paddingTop: '12px' }} /><Line type="monotone" dataKey="spent" stroke="#e74c3c" name="Spending" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} isAnimationActive={true} animationDuration={800} animationEasing="ease-in-out" /><Line type="monotone" dataKey="income" stroke="#27ae60" name="Income" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} isAnimationActive={true} animationDuration={800} animationEasing="ease-in-out" /></LineChart></ResponsiveContainer></div>)}
 
         <p style={{ fontSize: '13px', color: '#7f8c8d', marginBottom: '16px', fontStyle: 'italic' }}>Budgets follow a monthly cycle and reset at the beginning of each month</p>
 
@@ -192,6 +226,7 @@ export function Analysis() {
             </table>
           </div>
         </div>
+        </>
       </div>
     </div>
   );

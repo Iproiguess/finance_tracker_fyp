@@ -4,7 +4,7 @@ export const styles = {
   title: { fontSize: 28, margin: 0 },
   addButton: { backgroundColor: '#007bff', color: 'white', border: 'none', padding: '10px 20px', borderRadius: 6, cursor: 'pointer', fontSize: 16, transition: 'all 0.2s ease', outline: 'none' },
   loading: { textAlign: 'center', padding: 40, fontSize: 18, color: '#000' },
-  form: { backgroundColor: '#f8f9fa', padding: 24, borderRadius: 8, marginBottom: 24, border: '1px solid #ddd' },
+  form: { padding: 24, borderRadius: 8, marginBottom: 0, backgroundColor: 'white' },
   formGroup: { marginBottom: 16 },
   formRow: { display: 'flex', gap: 16 },
   label: { display: 'block', marginBottom: 4, fontWeight: 'bold', color: '#000' },
@@ -43,14 +43,15 @@ export const styles = {
     zIndex: 3000
   },
   modal: {
-    backgroundColor: 'white',
     borderRadius: '16px',
-    padding: '24px',
+    padding: '20px',
     width: '90%',
     maxWidth: '380px',
+    backgroundColor: '#ffffff',
     boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
   },
-  confirmBox: { textAlign: 'center', padding: '10px 0' },
+  // Confirm box uses black text to be visible on white modal background
+  confirmBox: { textAlign: 'center', padding: '10px 0', color: '#000' },
   warningIcon: { fontSize: '40px', marginBottom: '10px' },
   confirmActions: { display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' },
   confirmDeleteBtn: {

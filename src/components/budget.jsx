@@ -13,7 +13,15 @@ import {
   getInitialFormData 
 } from './utils/budgetUtils';
 
-// Main page for managing budgets
+const formatBudgetFormData = (budget) => ({
+  budget_name: budget.budget_name || '',
+  category_ids: budget.category_ids || [],
+  monthly_limit: budget.monthly_limit.toString(),
+  month: budget.month,
+  year: budget.year,
+  rollover: budget.rollover ?? budget.rollover_enabled ?? false
+});
+
 export default function BudgetPage() {
   const { budgets, loading: budgetsLoading, error: budgetsError, addBudget, updateBudget, deleteBudget } = useBudgets();
   const { categories, loading: categoriesLoading } = useCategories();
@@ -27,7 +35,6 @@ export default function BudgetPage() {
   const [hoveredBtn, setHoveredBtn] = useState(null);
   const [error, setError] = useState('');
 
-  // Fetch user ID on mount
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -36,7 +43,6 @@ export default function BudgetPage() {
     getUser();
   }, []);
 
-  // Reset form state
   const resetForm = () => {
     setFormData(getInitialFormData());
     setShowForm(false);
@@ -44,7 +50,6 @@ export default function BudgetPage() {
     setError('');
   };
 
-  // Toggle form visibility
   const handleToggleForm = () => {
     if (showForm) {
       resetForm();
@@ -56,7 +61,6 @@ export default function BudgetPage() {
     }
   };
 
-  // Handle form submit for add/edit
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -94,7 +98,6 @@ export default function BudgetPage() {
     }
   };
 
-  // Handle edit button click
   const handleEdit = (budget) => {
     const categoryIds = budget.category_ids || [];
     if (!validateCategoriesExist(categoryIds, categories)) {
@@ -102,14 +105,7 @@ export default function BudgetPage() {
       return;
     }
     setEditingBudget(budget);
-    setFormData({
-      budget_name: budget.budget_name || '',
-      category_ids: categoryIds,
-      monthly_limit: budget.monthly_limit.toString(),
-      month: budget.month,
-      year: budget.year,
-      rollover: budget.rollover ?? budget.rollover_enabled ?? false
-    });
+    setFormData(formatBudgetFormData(budget));
     setShowForm(true);
     setError('');
   };
@@ -134,7 +130,6 @@ export default function BudgetPage() {
     }
   };
 
-  // Listen for hash changes to open the edit form for a budget
   useEffect(() => {
     const openBudgetFromHash = () => {
       const hash = window.location.hash;
@@ -143,20 +138,12 @@ export default function BudgetPage() {
         const budget = budgets.find(b => String(b.budget_id) === budgetId);
         if (budget) {
           setEditingBudget(budget);
-          setFormData({
-            budget_name: budget.budget_name || '',
-            category_ids: budget.category_ids || [],
-            monthly_limit: budget.monthly_limit.toString(),
-            month: budget.month,
-            year: budget.year,
-            rollover: budget.rollover ?? budget.rollover_enabled ?? false
-          });
+          setFormData(formatBudgetFormData(budget));
           setShowForm(true);
         }
       }
     };
     window.addEventListener('hashchange', openBudgetFromHash);
-    // Run once on mount in case hash is already set
     openBudgetFromHash();
     return () => window.removeEventListener('hashchange', openBudgetFromHash);
   }, [budgets]);
@@ -182,7 +169,7 @@ export default function BudgetPage() {
           onMouseEnter={() => setHoveredBtn('addBudget')}
           onMouseLeave={() => setHoveredBtn(null)}
         >
-          {showForm ? 'Cancel' : '+ Add Budget'}
+          + Add Budget
         </button>
       </div>
 
@@ -194,14 +181,18 @@ export default function BudgetPage() {
       )}
 
       {showForm && (
-        <BudgetForm
-          formData={formData}
-          categories={categories}
-          isEditing={Boolean(editingBudget)}
-          onSubmit={handleSubmit}
-          onChange={setFormData}
-          onCancel={resetForm}
-        />
+        <div style={styles.overlay} onClick={resetForm}>
+          <div style={{ ...styles.modal, maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <BudgetForm
+              formData={formData}
+              categories={categories}
+              isEditing={Boolean(editingBudget)}
+              onSubmit={handleSubmit}
+              onChange={setFormData}
+              onCancel={resetForm}
+            />
+          </div>
+        </div>
       )}
 
       <div style={styles.budgetsList}>

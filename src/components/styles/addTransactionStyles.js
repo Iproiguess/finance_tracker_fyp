@@ -14,6 +14,8 @@ export const styles = {
     borderRadius: uiTheme.borderRadius,
     width: '95%',
     maxWidth: '420px',
+    maxHeight: '90vh',
+    overflowY: 'auto',
     boxShadow: uiTheme.cardShadow,
     fontFamily: uiTheme.fontFamily
   },
@@ -49,6 +51,10 @@ export const styles = {
   content: {
     display: 'flex', flexDirection: 'column', gap: uiTheme.spacing.md
   },
+  scrollableBody: {
+    overflowY: 'auto',
+    WebkitOverflowScrolling: 'touch'
+  },
   form: {
     display: 'flex', flexDirection: 'column', gap: uiTheme.spacing.md
   },
@@ -82,6 +88,88 @@ export const styles = {
     outline: 'none',
     background: '#f4f6fa',
     color: uiTheme.colors.text
+  },
+  hiddenInput: {
+    display: 'none'
+  },
+  receiptUploadButton: {
+    padding: uiTheme.spacing.sm,
+    borderRadius: '8px',
+    border: '1.5px dashed ' + uiTheme.colors.accent,
+    backgroundColor: '#edf6ff',
+    color: uiTheme.colors.accent,
+    fontWeight: 600,
+    cursor: 'pointer',
+    textAlign: 'center'
+  },
+  receiptPreview: {
+    width: '100%',
+    maxHeight: '180px',
+    objectFit: 'contain',
+    borderRadius: '8px',
+    border: '1px solid ' + uiTheme.colors.border,
+    backgroundColor: '#f8fafc'
+  },
+  receiptStatusBox: {
+    padding: uiTheme.spacing.sm,
+    borderRadius: '8px',
+    backgroundColor: '#f3f8ff',
+    color: uiTheme.colors.textLight,
+    fontSize: uiTheme.fontSize.small,
+    border: '1px solid #dceeff'
+  },
+  confidenceBadge: {
+    display: 'inline-block',
+    padding: '4px 8px',
+    borderRadius: '999px',
+    backgroundColor: '#eef6ff',
+    color: uiTheme.colors.accent,
+    fontSize: uiTheme.fontSize.xsmall,
+    fontWeight: 700,
+    marginLeft: '8px'
+  },
+  candidateList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    marginTop: uiTheme.spacing.sm
+  },
+  candidateItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '8px',
+    borderRadius: '8px',
+    backgroundColor: '#ffffff',
+    border: '1px solid #f0f0f0'
+  },
+  candidateItemSelected: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '8px',
+    borderRadius: '8px',
+    backgroundColor: '#eaf4ff',
+    border: '1px solid #9ed0ff'
+  },
+  candidateBtn: {
+    padding: '6px 10px',
+    borderRadius: '6px',
+    border: 'none',
+    backgroundColor: uiTheme.colors.accent,
+    color: 'white',
+    cursor: 'pointer',
+    fontWeight: 700
+  },
+  receiptSubmitButton: {
+    padding: uiTheme.spacing.sm,
+    backgroundColor: '#2ecc71',
+    color: 'white',
+    border: 'none',
+    borderRadius: uiTheme.borderRadius,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontSize: uiTheme.fontSize.base
   },
   submitButton: {
     padding: uiTheme.spacing.sm,

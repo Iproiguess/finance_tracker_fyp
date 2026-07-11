@@ -1,14 +1,15 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { styles } from './styles/budgetStyles';
 import { formatCurrency } from '../config/constants';
+import { formatDateToDDMMYYYY } from '../utils/dateFormatter';
+import flatpickr from 'flatpickr';
+import 'flatpickr/dist/flatpickr.min.css';
 import { 
   getCurrentSpendingByBudget,
   getProgressColor, 
   getProgressPercentage,
   getEffectiveBudget,
-  getBudgetPeriodDisplay,
-  MONTH_NAMES,
-  getCurrentSpending
+  getBudgetPeriodDisplay
 } from './utils/budgetUtils';
 
 export default function BudgetCard({
@@ -20,8 +21,99 @@ export default function BudgetCard({
   onDelete
 }) {
   const [selectedBadges, setSelectedBadges] = useState({});
-  const [selectedMonth, setSelectedMonth] = useState(budget.month);
-  const [selectedYear, setSelectedYear] = useState(budget.year);
+  const [viewAll, setViewAll] = useState(false);
+
+  const getLocalDateString = useCallback((date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+
+  const normalizeBudgetDate = useCallback((dateValue) => {
+    if (!dateValue) return '';
+
+    const value = String(dateValue).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return value;
+    }
+
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return getLocalDateString(parsed);
+    }
+
+    return value;
+  }, [getLocalDateString]);
+
+  const [fromDate, setFromDate] = useState(() => {
+    const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    return getLocalDateString(firstDayOfMonth);
+  });
+  const [toDate, setToDate] = useState(() => getLocalDateString(new Date()));
+
+  const fromPickerId = `from-date-picker-${budget.budget_id}`;
+  const toPickerId = `to-date-picker-${budget.budget_id}`;
+
+  const fromFpRef = useRef(null);
+  const toFpRef = useRef(null);
+
+  // Initialize Flatpickr once per budget card so the visible date box matches the analysis UI.
+  useEffect(() => {
+    try {
+      const fromEl = document.getElementById(fromPickerId);
+      const toEl = document.getElementById(toPickerId);
+      const baseOpts = {
+        altInput: true,
+        altFormat: 'd/m/Y',
+        dateFormat: 'Y-m-d',
+        allowInput: true,
+        altInputClass: 'budget-flatpickr-input'
+      };
+
+      if (fromEl) {
+        fromFpRef.current = flatpickr(fromEl, {
+          ...baseOpts,
+          defaultDate: fromDate || null,
+          onChange: (_selectedDates, dateStr) => {
+            setFromDate(normalizeBudgetDate(dateStr));
+            if (viewAll) setViewAll(false);
+          }
+        });
+      }
+
+      if (toEl) {
+        toFpRef.current = flatpickr(toEl, {
+          ...baseOpts,
+          defaultDate: toDate || null,
+          onChange: (_selectedDates, dateStr) => {
+            setToDate(normalizeBudgetDate(dateStr));
+            if (viewAll) setViewAll(false);
+          }
+        });
+      }
+
+      return () => {
+        if (fromFpRef.current) fromFpRef.current.destroy();
+        if (toFpRef.current) toFpRef.current.destroy();
+      };
+    } catch (e) {
+      console.warn('flatpickr init failed', e);
+    }
+  }, [fromPickerId, toPickerId, fromDate, toDate, normalizeBudgetDate, viewAll]);
+
+  // sync values when state changes
+  useEffect(() => {
+    if (fromFpRef.current) {
+      try { fromFpRef.current.setDate(fromDate, false); } catch(e) {}
+    }
+  }, [fromDate]);
+
+  useEffect(() => {
+    if (toFpRef.current) {
+      try { toFpRef.current.setDate(toDate, false); } catch(e) {}
+    }
+  }, [toDate]);
 
   const categoryIds = useMemo(() => budget.category_ids || [], [budget.category_ids]);
   
@@ -36,19 +128,39 @@ export default function BudgetCard({
       .filter(c => selectedBadges[`${budget.budget_id}-${c.category_id}`])
       .map(c => c.category_id);
 
-    // If no badges selected use all categories, otherwise use only selected ones
     return selected.length > 0 ? selected : categoryIds;
   }, [selectedBadges, selectedCategories, categoryIds, budget.budget_id]);
 
   const currentSpending = useMemo(() => {
-    return getCurrentSpending(selectedCategoryIds, selectedMonth, selectedYear, transactions);
-  }, [selectedCategoryIds, selectedMonth, selectedYear, transactions]);
+    if (viewAll) {
+      return selectedCategoryIds.reduce((sum, categoryId) => {
+        const categoryExpenses = transactions.filter(txn => {
+          return txn.category_id === categoryId && txn.type === 'expense';
+        });
+        return sum + categoryExpenses.reduce((catSum, txn) => catSum + parseFloat(txn.amount), 0);
+      }, 0);
+    } else {
+      const from = new Date(fromDate);
+      const to = new Date(toDate);
+      to.setHours(23, 59, 59, 999);
+      
+      return selectedCategoryIds.reduce((sum, categoryId) => {
+        const categoryExpenses = transactions.filter(txn => {
+          const txnDate = new Date(txn.date);
+          return txn.category_id === categoryId && 
+                 txn.type === 'expense' &&
+                 txnDate >= from &&
+                 txnDate <= to;
+        });
+        return sum + categoryExpenses.reduce((catSum, txn) => catSum + parseFloat(txn.amount), 0);
+      }, 0);
+    }
+  }, [selectedCategoryIds, viewAll, fromDate, toDate, transactions]);
 
   const effectiveBudget = useMemo(() => {
     return getEffectiveBudget(budget, budgets, transactions);
   }, [budget, budgets, transactions]);
 
-  // Early return if no categories selected
   if (selectedCategories.length === 0) return null;
 
   const remaining = effectiveBudget - currentSpending;
@@ -58,6 +170,7 @@ export default function BudgetCard({
 
   return (
     <div 
+      className="budget-card"
       style={styles.budgetCard}
       onMouseEnter={(e) => {
         e.currentTarget.style.backgroundColor = '#f8f9fa';
@@ -129,68 +242,190 @@ export default function BudgetCard({
         
         <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#f5f8fa', borderRadius: '6px' }}>
           <p style={{ margin: '0 0 8px 0', color: '#000', fontSize: 13, fontWeight: '600', textTransform: 'uppercase' }}>
-            View Expenses By Month
+            View Expenses By Date Range
           </p>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <select 
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-              style={{
-                padding: '6px 10px',
-                fontSize: 13,
-                borderRadius: '4px',
-                border: '1px solid #d3d6de',
-                backgroundColor: '#fff',
-                cursor: 'pointer',
-                color: '#000'
-              }}
-            >
-              {MONTH_NAMES.map((name, idx) => (
-                <option key={idx} value={idx + 1}>{name}</option>
-              ))}
-            </select>
-            <select 
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-              style={{
-                padding: '6px 10px',
-                fontSize: 13,
-                borderRadius: '4px',
-                border: '1px solid #d3d6de',
-                backgroundColor: '#fff',
-                cursor: 'pointer',
-                width: '80px',
-                color: '#000'
-              }}
-            >
-              {[...Array(5)].map((_, i) => {
-                const year = new Date().getFullYear() - 2 + i;
-                return <option key={year} value={year}>{year}</option>;
-              })}
-            </select>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label style={{ color: '#000', fontWeight: '500', whiteSpace: 'nowrap', fontSize: '12px' }}>From:</label>
+              <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+                <input
+                  id={fromPickerId}
+                  type="text"
+                  lang="en-GB"
+                  value={fromDate}
+                  onChange={(e) => {
+                    setFromDate(normalizeBudgetDate(e.target.value));
+                    if (viewAll) setViewAll(false);
+                  }}
+                  className="budget-flatpickr-input"
+                  style={{
+                    padding: '4px 6px',
+                    borderRadius: '4px',
+                    border: '1px solid #bdc3c7',
+                    backgroundColor: '#fff',
+                    color: '#000',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    minWidth: '120px'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const dateInput = document.getElementById(fromPickerId);
+                    if (!dateInput) return;
+                    if (dateInput._flatpickr) {
+                      dateInput._flatpickr.open();
+                    } else if (typeof flatpickr === 'function') {
+                      try {
+                        const opts = {
+                          altInput: true,
+                          altFormat: 'd/m/Y',
+                          dateFormat: 'Y-m-d',
+                          allowInput: true,
+                          altInputClass: 'budget-flatpickr-input'
+                        };
+                        const fp = flatpickr(dateInput, { ...opts, defaultDate: dateInput.value || null });
+                        fp.open();
+                      } catch (e) {
+                        if (dateInput && dateInput.showPicker) dateInput.showPicker();
+                        else dateInput.click();
+                      }
+                    } else if (dateInput && dateInput.showPicker) {
+                      dateInput.showPicker();
+                    } else {
+                      dateInput.click();
+                    }
+                  }}
+                  style={{
+                    position: 'absolute',
+                    right: '4px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '2px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    outline: 'none'
+                  }}
+                  title="Open calendar"
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="1" y="3" width="14" height="12" rx="1" stroke="#000" strokeWidth="1.5"/>
+                    <line x1="1" y1="5" x2="15" y2="5" stroke="#000" strokeWidth="1.5"/>
+                    <line x1="5" y1="1" x2="5" y2="4" stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
+                    <line x1="11" y1="1" x2="11" y2="4" stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label style={{ color: '#000', fontWeight: '500', whiteSpace: 'nowrap', fontSize: '12px' }}>To:</label>
+              <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+                <input
+                  id={toPickerId}
+                  type="text"
+                  lang="en-GB"
+                  value={toDate}
+                  onChange={(e) => {
+                    setToDate(normalizeBudgetDate(e.target.value));
+                    if (viewAll) setViewAll(false);
+                  }}
+                  className="budget-flatpickr-input"
+                  style={{
+                    padding: '4px 6px',
+                    borderRadius: '4px',
+                    border: '1px solid #bdc3c7',
+                    backgroundColor: '#fff',
+                    color: '#000',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    minWidth: '120px'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const dateInput = document.getElementById(toPickerId);
+                    if (!dateInput) return;
+                    if (dateInput._flatpickr) {
+                      dateInput._flatpickr.open();
+                    } else if (typeof flatpickr === 'function') {
+                      try {
+                        const opts = {
+                          altInput: true,
+                          altFormat: 'd/m/Y',
+                          dateFormat: 'Y-m-d',
+                          allowInput: true,
+                          altInputClass: 'budget-flatpickr-input'
+                        };
+                        const fp = flatpickr(dateInput, { ...opts, defaultDate: dateInput.value || null });
+                        fp.open();
+                      } catch (e) {
+                        if (dateInput && dateInput.showPicker) dateInput.showPicker();
+                        else dateInput.click();
+                      }
+                    } else if (dateInput && dateInput.showPicker) {
+                      dateInput.showPicker();
+                    } else {
+                      dateInput.click();
+                    }
+                  }}
+                  style={{
+                    position: 'absolute',
+                    right: '4px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '2px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    outline: 'none'
+                  }}
+                  title="Open calendar"
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="1" y="3" width="14" height="12" rx="1" stroke="#000" strokeWidth="1.5"/>
+                    <line x1="1" y1="5" x2="15" y2="5" stroke="#000" strokeWidth="1.5"/>
+                    <line x1="5" y1="1" x2="5" y2="4" stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
+                    <line x1="11" y1="1" x2="11" y2="4" stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
             <button
-              onClick={() => {
-                setSelectedMonth(budget.month);
-                setSelectedYear(budget.year);
-              }}
+              onClick={() => setViewAll(!viewAll)}
               style={{
                 padding: '6px 12px',
                 fontSize: 12,
-                backgroundColor: '#e3e7ed',
-                border: '1px solid #d3d6de',
+                backgroundColor: viewAll ? '#28a745' : '#e3e7ed',
+                color: viewAll ? '#fff' : '#000',
+                border: '1px solid ' + (viewAll ? '#20c997' : '#d3d6de'),
                 borderRadius: '4px',
                 cursor: 'pointer',
                 fontWeight: 500,
-                transition: 'all 0.2s ease'
+                transition: 'all 0.2s ease',
+                outline: 'none'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#d3d6de';
+                e.currentTarget.style.backgroundColor = viewAll ? '#20c997' : '#d3d6de';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#e3e7ed';
+                e.currentTarget.style.backgroundColor = viewAll ? '#28a745' : '#e3e7ed';
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.outline = 'none';
               }}
             >
-              Reset
+              {viewAll ? '✓ View All' : 'View All'}
             </button>
           </div>
         </div>

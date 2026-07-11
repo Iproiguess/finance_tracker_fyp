@@ -2,29 +2,46 @@ import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { formatCurrency } from '../config/constants';
 
-// Simple forecast and recommendation based on simulation
+const getMonthlyChangeColor = (type, monthlyDifference) => {
+  if (type === 'expense') {
+    // For expenses: negative (decrease) is good (green), positive (increase) is bad (red)
+    return monthlyDifference <= 0 ? '#27ae60' : '#e74c3c';
+  }
+  if (type === 'income') {
+    // For income: positive (increase) is good (green), negative (decrease) is bad (red)
+    return monthlyDifference >= 0 ? '#27ae60' : '#e74c3c';
+  }
+  // For both: positive net difference is better (green), negative is worse (red)
+  return monthlyDifference >= 0 ? '#27ae60' : '#e74c3c';
+};
+
+const getCumulativeImpactStyle = (type, cumulativeValue) => {
+  const isPositive = type === 'expense' ? cumulativeValue <= 0 : cumulativeValue >= 0;
+  return {
+    backgroundColor: isPositive ? '#e8f5e9' : '#ffebee',
+    borderColor: isPositive ? '#27ae60' : '#e74c3c',
+    textColor: isPositive ? '#27ae60' : '#e74c3c'
+  };
+};
+
 export function ForecastAndRecommendation({ simulationResult, transactions, budgets = [], selectedBudgetIds = new Set() }) {
-  // Filter transactions to only include those from selected categories
+  // Filter transactions to only include those from selected categories in simulation
   let relevantTransactions = transactions;
   
-  // If simulation has selected category IDs, use those directly
   if (simulationResult && simulationResult.selectedCategoryIds && simulationResult.selectedCategoryIds.length > 0) {
     const selectedCategoryIds = new Set(simulationResult.selectedCategoryIds);
     relevantTransactions = transactions.filter(tx => selectedCategoryIds.has(tx.category_id));
   }
 
-  // Forecast: project balance in 6 months if current trend continues
-  // Recommendation: compare category to average and suggest
-  // For simplicity, use total income/expense trend
   const months = 6;
   const now = new Date();
+  // Calculate rolling window for last 6 months of data
   const windowStart = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
   const last6 = relevantTransactions.filter(tx => {
     const d = new Date(tx.date);
     return d >= windowStart && d <= now;
   });
 
-  // If there are no transactions in the window, show a helpful message later
   const monthKeys = new Set();
   last6.forEach(tx => {
     const d = new Date(tx.date);
@@ -35,15 +52,13 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
   const income = last6.filter(tx => tx.type === 'income').reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
   const expense = last6.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
 
-  // Use the number of months with data to compute an average. If there are no months, treat averages as 0.
+  // Average per month with fallback to prevent division by zero
   const divisor = monthsAvailable > 0 ? monthsAvailable : 1;
   const avgMonthlyIncome = income / divisor;
   const avgMonthlyExpense = expense / divisor;
 
-  // Forecast over `months` using the per-month averages computed from available data
   const forecastBalance = (avgMonthlyIncome - avgMonthlyExpense) * months;
   
-  // Calculate total budget limit for selected budgets
   let totalBudgetLimit = 0;
   if (simulationResult && simulationResult.selectedBudgetIds && simulationResult.selectedBudgetIds.length > 0) {
     const selectedBudgetsSet = new Set(simulationResult.selectedBudgetIds);
@@ -52,41 +67,39 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
       .forEach(b => totalBudgetLimit += b.monthly_limit || 0);
   }
   
-  // Recommendation: Compare forecast spending against budget limit
   let recommendation = '';
   const forecastSpending = avgMonthlyExpense * months;
   const remainingBudget = totalBudgetLimit - forecastSpending;
   
   if (totalBudgetLimit > 0) {
-    // Recommend based on budget vs forecast
     const spendingPercentage = (avgMonthlyExpense / totalBudgetLimit) * 100;
     
     if (spendingPercentage > 100) {
-      recommendation = `Your average monthly spending ($${avgMonthlyExpense.toFixed(2)}) exceeds your budget limit ($${totalBudgetLimit.toFixed(2)}). Based on this trend, in 6 months you'll be $${Math.abs(remainingBudget).toFixed(2)} over budget. Consider reducing expenses significantly.`;
+      recommendation = `Your average monthly spending (${avgMonthlyExpense.toFixed(2)}) exceeds your budget limit (${totalBudgetLimit.toFixed(2)}). Based on this trend, in 6 months you'll be ${Math.abs(remainingBudget).toFixed(2)} over budget. Consider reducing expenses significantly.`;
     } else if (spendingPercentage > 75) {
-      recommendation = `Your average monthly spending ($${avgMonthlyExpense.toFixed(2)}) is at ${spendingPercentage.toFixed(0)}% of your budget ($${totalBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have $${remainingBudget.toFixed(2)} remaining. Consider reducing expenses.`;
+      recommendation = `Your average monthly spending (${avgMonthlyExpense.toFixed(2)}) is at ${spendingPercentage.toFixed(0)}% of your budget (${totalBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have ${remainingBudget.toFixed(2)} remaining. Consider reducing expenses.`;
     } else if (spendingPercentage > 50) {
-      recommendation = `Your average monthly spending ($${avgMonthlyExpense.toFixed(2)}) is at ${spendingPercentage.toFixed(0)}% of your budget ($${totalBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have $${remainingBudget.toFixed(2)} remaining. You're on track.`;
+      recommendation = `Your average monthly spending (${avgMonthlyExpense.toFixed(2)}) is at ${spendingPercentage.toFixed(0)}% of your budget (${totalBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have ${remainingBudget.toFixed(2)} remaining. You're on track.`;
     } else {
-      recommendation = `Your average monthly spending ($${avgMonthlyExpense.toFixed(2)}) is at ${spendingPercentage.toFixed(0)}% of your budget ($${totalBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have $${remainingBudget.toFixed(2)} remaining. Great control!`;
+      recommendation = `Your average monthly spending (${avgMonthlyExpense.toFixed(2)}) is at ${spendingPercentage.toFixed(0)}% of your budget (${totalBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have ${remainingBudget.toFixed(2)} remaining. Great control!`;
     }
   } else {
     // No budget limit set, use income comparison
     if (avgMonthlyExpense > avgMonthlyIncome) {
-      recommendation = `Your average monthly expenses ($${avgMonthlyExpense.toFixed(2)}) exceed your average income ($${avgMonthlyIncome.toFixed(2)}) by $${(avgMonthlyExpense - avgMonthlyIncome).toFixed(2)}. Consider reducing expenses.`;
+      recommendation = `Your average monthly expenses (${avgMonthlyExpense.toFixed(2)}) exceed your average income (${avgMonthlyIncome.toFixed(2)}) by ${(avgMonthlyExpense - avgMonthlyIncome).toFixed(2)}. Consider reducing expenses.`;
     } else if (avgMonthlyIncome > avgMonthlyExpense) {
-      recommendation = `Your average monthly income ($${avgMonthlyIncome.toFixed(2)}) exceeds your average expenses ($${avgMonthlyExpense.toFixed(2)}). You're saving about $${(avgMonthlyIncome - avgMonthlyExpense).toFixed(2)} per month.`;
+      recommendation = `Your average monthly income (${avgMonthlyIncome.toFixed(2)}) exceeds your average expenses (${avgMonthlyExpense.toFixed(2)}). You're saving about ${(avgMonthlyIncome - avgMonthlyExpense).toFixed(2)} per month.`;
     } else {
       recommendation = 'Your average income and expenses are balanced.';
     }
   }
 
-  // Calculate impact summary and cumulative chart data when simulation is run
   let impactData = [];
   let impactSummary = {};
+  let isSimulation = false;
   
   if (simulationResult) {
-    // Calculate current monthly amount (before simulation)
+    isSimulation = true;
     let currentAmount = avgMonthlyExpense;
     if (simulationResult.simulateType === 'income') {
       currentAmount = avgMonthlyIncome;
@@ -94,7 +107,6 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
       currentAmount = avgMonthlyExpense + avgMonthlyIncome;
     }
 
-    // Calculate simulated monthly amount
     let simulatedAmount = currentAmount;
     if (simulationResult.mode === 'percent') {
       simulatedAmount = currentAmount * (1 + simulationResult.value / 100);
@@ -102,10 +114,8 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
       simulatedAmount = currentAmount + simulationResult.value;
     }
 
-    // Calculate monthly difference (savings/cost)
     const monthlyImpact = simulatedAmount - currentAmount;
     
-    // Build cumulative data for 3 months
     let cumulative = 0;
     for (let i = 1; i <= 3; i++) {
       cumulative += monthlyImpact;
@@ -124,6 +134,19 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
       cumulativeIn3Months: cumulative,
       type: simulationResult.simulateType
     };
+  } else {
+    // Show baseline current spending trajectory even without simulation
+    const monthlyBalance = avgMonthlyIncome - avgMonthlyExpense;
+    let cumulative = 0;
+    for (let i = 1; i <= 3; i++) {
+      cumulative += monthlyBalance;
+      impactData.push({
+        month: `Month ${i}`,
+        impact: monthlyBalance,
+        cumulative: cumulative,
+        isPositive: cumulative >= 0
+      });
+    }
   }
 
   if (monthsAvailable === 0) {
@@ -142,7 +165,6 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
         <div style={{ marginTop: 6 }}><b>Recommendation:</b> {recommendation}</div>
       </div>
 
-      {/* Impact Summary Card */}
       {simulationResult && impactSummary && (
         <div style={{ background: '#f0f8ff', borderRadius: 8, padding: '16px', margin: '12px 0', border: '2px solid #2176ae' }}>
           <h4 style={{ margin: '0 0 12px 0', fontSize: 15, fontWeight: 600, color: '#232323' }}>Impact Summary</h4>
@@ -152,7 +174,7 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
               <div style={{ fontSize: 14, fontWeight: 700, color: '#232323' }}>{impactSummary.type === 'income' ? '+' : impactSummary.type === 'expense' ? '-' : ''}{impactSummary.currentMonthly.toFixed(2)}</div>
             </div>
             <div style={{ background: '#fff', padding: '12px', borderRadius: 6, borderLeft: '4px solid #27ae60' }}>
-              <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 4 }}>Simulated Average Monthly</div>
+              <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 4 }}>Forecasted Average Monthly</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#232323' }}>{impactSummary.type === 'income' ? '+' : impactSummary.type === 'expense' ? '-' : ''}{impactSummary.simulatedMonthly.toFixed(2)}</div>
             </div>
           </div>
@@ -161,18 +183,36 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
             <div style={{ 
               fontSize: 18, 
               fontWeight: 700, 
-              color: impactSummary.monthlyDifference >= 0 ? '#27ae60' : '#e74c3c'
+              color: (() => {
+                // Determine if the change is financially good or bad based on simulation type
+                if (impactSummary.type === 'expense') {
+                  // For expenses: negative change (decrease) is good (green), positive change (increase) is bad (red)
+                  return impactSummary.monthlyDifference <= 0 ? '#27ae60' : '#e74c3c';
+                } else if (impactSummary.type === 'income') {
+                  // For income: positive change (increase) is good (green), negative change (decrease) is bad (red)
+                  return impactSummary.monthlyDifference >= 0 ? '#27ae60' : '#e74c3c';
+                } else {
+                  // For both: if net difference is negative, it's worse (red), positive is better (green)
+                  return impactSummary.monthlyDifference >= 0 ? '#27ae60' : '#e74c3c';
+                }
+              })()
             }}>
               {impactSummary.monthlyDifference >= 0 ? '+' : ''}{impactSummary.monthlyDifference.toFixed(2)}
               {' '} ({impactSummary.type})
             </div>
           </div>
-          <div style={{ marginTop: 12, padding: '12px', background: impactSummary.cumulativeIn3Months >= 0 ? '#e8f5e9' : '#ffebee', borderRadius: 6, textAlign: 'center', border: `2px solid ${impactSummary.cumulativeIn3Months >= 0 ? '#27ae60' : '#e74c3c'}` }}>
+          <div style={{ marginTop: 12, padding: '12px', background: impactSummary.type === 'expense' ? (impactSummary.cumulativeIn3Months <= 0 ? '#e8f5e9' : '#ffebee') : (impactSummary.cumulativeIn3Months >= 0 ? '#e8f5e9' : '#ffebee'), borderRadius: 6, textAlign: 'center', border: `2px solid ${
+            impactSummary.type === 'expense' 
+              ? (impactSummary.cumulativeIn3Months <= 0 ? '#27ae60' : '#e74c3c')
+              : (impactSummary.cumulativeIn3Months >= 0 ? '#27ae60' : '#e74c3c')
+          }` }}>
             <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 4 }}>3-Month Forecasted Cumulative Impact</div>
             <div style={{ 
               fontSize: 18, 
               fontWeight: 700, 
-              color: impactSummary.cumulativeIn3Months >= 0 ? '#27ae60' : '#e74c3c'
+              color: impactSummary.type === 'expense' 
+                ? (impactSummary.cumulativeIn3Months <= 0 ? '#27ae60' : '#e74c3c')
+                : (impactSummary.cumulativeIn3Months >= 0 ? '#27ae60' : '#e74c3c')
             }}>
               {impactSummary.cumulativeIn3Months >= 0 ? '+' : ''}{impactSummary.cumulativeIn3Months.toFixed(2)}
             </div>
@@ -180,10 +220,11 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
         </div>
       )}
 
-      {/* Cumulative Impact Chart */}
       {impactData.length > 0 && (
         <div style={{ background: '#f5f8fa', borderRadius: 8, padding: '16px', margin: '12px 0' }}>
-          <h4 style={{ margin: '0 0 12px 0', fontSize: 15, fontWeight: 600, color: '#232323' }}>Cumulative Impact Over 3 Months</h4>
+          <h4 style={{ margin: '0 0 12px 0', fontSize: 15, fontWeight: 600, color: '#232323' }}>
+            {isSimulation ? 'Scenario Impact Over 3 Months' : 'Current Spending Trajectory (3 Months)'}
+          </h4>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={impactData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -196,14 +237,17 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
               <Legend />
               <Bar 
                 dataKey="cumulative" 
-                fill="#2176ae" 
-                name="Cumulative Savings/Cost" 
+                fill={isSimulation ? '#2176ae' : '#7f8c8d'} 
+                name={isSimulation ? 'Simulated Cumulative' : 'Current Cumulative Balance'} 
                 radius={[4, 4, 0, 0]}
               />
             </BarChart>
           </ResponsiveContainer>
           <p style={{ fontSize: 11, color: '#7f8c8d', margin: '8px 0 0 0', fontStyle: 'italic', textAlign: 'center' }}>
-            Chart shows forecasted cumulative effect of your simulation over 3 months based on average spending patterns
+            {isSimulation 
+              ? 'Chart shows forecasted cumulative effect of your simulation over 3 months based on average spending patterns'
+              : 'Chart shows your projected cumulative balance over 3 months based on current spending patterns'
+            }
           </p>
         </div>
       )}

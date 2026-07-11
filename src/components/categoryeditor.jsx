@@ -57,7 +57,6 @@ export function CategoryEditor({ category, onClose, fetchCategories: parentFetch
               ...styles.closeButton,
               ...(hoveredBtn === 'close' && { 
                 backgroundColor: '#c0392b',
-                transform: 'translateY(-2px)',
                 boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)'
               })
             }}
@@ -65,7 +64,7 @@ export function CategoryEditor({ category, onClose, fetchCategories: parentFetch
             onMouseLeave={() => setHoveredBtn(null)}
             aria-label="Close"
           >
-            &times;
+            <span style={{ position: 'relative', top: '-1px' }}>&times;</span>
           </button>
         </div>
 

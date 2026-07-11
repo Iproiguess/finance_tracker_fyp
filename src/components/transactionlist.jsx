@@ -50,6 +50,21 @@ export function TransactionList({ onAddClick }) {
                 <div style={styles.transactionInfo}>
                   <div style={styles.description}>
                     {transaction.description || 'No description'}
+                    {transaction.automation_id && (
+                      <span style={{
+                        display: 'inline-block',
+                        marginLeft: '8px',
+                        fontSize: '10px',
+                        padding: '2px 6px',
+                        borderRadius: '3px',
+                        backgroundColor: '#e8f4f8',
+                        color: '#0277bd',
+                        fontWeight: '500',
+                        letterSpacing: '0.5px'
+                      }}>
+                        auto
+                      </span>
+                    )}
                   </div>
                   <div style={styles.details}>
                     <span style={{ color: categoryColor, fontWeight: 'bold' }}>

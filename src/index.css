@@ -73,3 +73,96 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+/* Hide native calendar indicators to avoid duplicate icons when using flatpickr */
+input::-webkit-calendar-picker-indicator {
+  display: none;
+  -webkit-appearance: none;
+}
+input::-webkit-inner-spin-button,
+input::-webkit-clear-button {
+  display: none;
+}
+input::-ms-clear,
+input::-ms-expand {
+  display: none;
+}
+
+/* Style flatpickr alt input as a short white overlay box and hide original input text */
+.flatpickr-input.flatpickr-alt-input,
+.flatpickr-input.flatpickr-alt-input:focus,
+.flatpickr-input.flatpickr-alt-input:active,
+.flatpickr-wrapper .flatpickr-input.flatpickr-alt-input {
+  position: absolute;
+  right: 8px !important;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #fff !important;
+  color: #000 !important;
+  border: 1px solid #ddd !important;
+  border-radius: 6px !important;
+  padding: 6px 8px !important;
+  width: 96px !important;
+  box-sizing: border-box;
+  text-align: center;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* Hide/neutralize the original flatpickr input so only the small alt box shows */
+/* Hide the original (real) input entirely so it never shows or receives clicks */
+input.flatpickr-input:not(.flatpickr-alt-input) {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Slightly smaller on Budget card where inputs are narrower */
+.budget-card .flatpickr-input.flatpickr-alt-input { width: 80px; right: 36px; }
+
+/* Budget card date picker should display formatted dd/mm/yyyy in the visible textbox. */
+/* Flatpickr alt inputs scoped for budget and analysis to avoid colliding with global styles */
+.budget-card .budget-flatpickr-input,
+.budget-flatpickr-input.flatpickr-alt-input,
+.budget-card input.budget-flatpickr-input {
+  background: #fff !important;
+  color: #000 !important;
+  border: 1px solid #ccc !important;
+  box-shadow: none !important;
+  outline: none !important;
+  pointer-events: auto !important;
+  width: 110px !important;
+  padding: 5px 12px 5px 8px !important;
+  border-radius: 4px !important;
+}
+
+/* Analysis inputs styling */
+.analysis-flatpickr-input,
+.analysis-flatpickr-input.flatpickr-alt-input,
+#start-date + .analysis-flatpickr-input,
+#end-date + .analysis-flatpickr-input,
+.analysis-flatpickr-input.active,
+.analysis-flatpickr-input:focus {
+  background: #fff !important;
+  color: #000 !important;
+  border: 1px solid #ccc !important;
+  box-shadow: none !important;
+  outline: none !important;
+  width: 120px !important;
+  padding: 5px 12px 5px 8px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  border-radius: 4px !important;
+  box-sizing: border-box !important;
+}
+
+/* Ensure any flatpickr-created alt input always uses the scoped class if present */
+.flatpickr-input.flatpickr-alt-input.analysis-flatpickr-input,
+.flatpickr-input.flatpickr-alt-input.budget-flatpickr-input {
+  background: #fff !important;
+  color: #000 !important;
+  border: 1px solid #ccc !important;
+  box-shadow: none !important;
+  padding: 5px 12px 5px 8px !important;
+}

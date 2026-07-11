@@ -5,23 +5,45 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 export function ScenarioSimulateModal({
   open,
   onClose,
+  onCancel,
   onSimulate,
   transactions = [],
   selectedBudgetIds = new Set(),
   allBudgets = [],
+  initialMode = 'percent',
+  initialValue = '',
+  initialSimulateType = 'expense',
+  initialModalSelectedBudgetIds = new Set(),
+  onModalStateChange = () => {},
 }) {
-  const [mode, setMode] = useState('percent'); // 'percent' or 'amount'
-  const [value, setValue] = useState('');
-  const [simulateType, setSimulateType] = useState('expense'); // 'expense', 'income', or 'both'
-  // Smart suggestion state
+  const [mode, setMode] = useState(initialMode);
+  const [value, setValue] = useState(initialValue);
+  const [simulateType, setSimulateType] = useState(initialSimulateType);
   const [suggested, setSuggested] = useState(null);
   const [hoveredBtn, setHoveredBtn] = useState(null);
   const [hoveredSimulate, setHoveredSimulate] = useState(false);
-  // Modal-level budget selection
-  const [modalSelectedBudgetIds, setModalSelectedBudgetIds] = useState(new Set(selectedBudgetIds));
+  const [modalSelectedBudgetIds, setModalSelectedBudgetIds] = useState(new Set(initialModalSelectedBudgetIds));
+  const [error, setError] = useState('');
   const modalRef = useRef(null);
   const closeBtnRef = useRef(null);
-  // Accessibility: trap focus inside modal
+  
+  useEffect(() => {
+    onModalStateChange({
+      mode,
+      value,
+      simulateType,
+      modalSelectedBudgetIds,
+    });
+  }, [mode, value, simulateType, modalSelectedBudgetIds, onModalStateChange]);
+  
+  // Clear error when budget is selected
+  useEffect(() => {
+    if (modalSelectedBudgetIds.size > 0) {
+      setError('');
+    }
+  }, [modalSelectedBudgetIds]);
+  
+  // Trap focus inside modal for accessibility (prevent focus escape)
   useEffect(() => {
     if (!open) return;
     const handleTab = (e) => {
@@ -43,7 +65,7 @@ export function ScenarioSimulateModal({
         }
       }
       if (e.key === 'Escape') {
-        onClose();
+        onCancel();
       }
     };
     document.addEventListener('keydown', handleTab);
@@ -82,14 +104,35 @@ export function ScenarioSimulateModal({
     }
   }, [allBudgets, modalSelectedBudgetIds.size]);
   
-  const handleSimulate = useCallback(() => {
-    onSimulate({ mode, value: Number(value), simulateType, selectedBudgetIds: Array.from(modalSelectedBudgetIds) });
-    onClose();
-  }, [onSimulate, mode, value, simulateType, modalSelectedBudgetIds, onClose]);
+  // Reset modal state when it closes
+  useEffect(() => {
+    if (!open) {
+      setMode(initialMode);
+      setValue(initialValue);
+      setSimulateType(initialSimulateType);
+      setModalSelectedBudgetIds(new Set());
+      setSuggested(null);
+      setError('');
+    }
+  }, [open, initialMode, initialValue, initialSimulateType]);
 
-  // Suggestion logic: analyze up to 12 months of historical data
+  const handleSimulate = useCallback(() => {
+    if (modalSelectedBudgetIds.size === 0) {
+      setError('Please select at least one budget');
+      return;
+    }
+    setError('');
+    onSimulate({ mode, value: Number(value), simulateType, selectedBudgetIds: Array.from(modalSelectedBudgetIds) });
+    onClose(); // Close modal but keep simulation active
+  }, [onSimulate, onClose, mode, value, simulateType, modalSelectedBudgetIds]);
+
   const handleSuggest = useCallback(() => {
-    // If budgets are selected in modal, filter transactions to only those budgets
+    if (modalSelectedBudgetIds.size === 0) {
+      setError('Please select at least one budget');
+      return;
+    }
+    setError('');
+    // If modal budgets selected, filter transactions to only those budgets' categories
     let relevantTransactions = transactions;
     if (modalSelectedBudgetIds.size > 0) {
       const selectedCategoryIds = new Set();
@@ -102,10 +145,9 @@ export function ScenarioSimulateModal({
     if (!relevantTransactions || relevantTransactions.length === 0) return setSuggested('No data for selected budgets');
     
     const now = new Date();
-    // Look back max 12 months for performance
+    // Look back 12 months maximum for performance (avoid analyzing too much data)
     const twelveMonthsAgo = new Date(now.getFullYear() - 1, now.getMonth(), 1);
-    
-    // Analyze BOTH expense and income trends separately
+    // Analyze both expense and income trends separately for better recommendations
     const expenseFiltered = relevantTransactions.filter(tx => {
       const d = new Date(tx.date);
       return d >= twelveMonthsAgo && tx.type === 'expense';
@@ -126,7 +168,6 @@ export function ScenarioSimulateModal({
     });
     const expenseVals = Object.values(expenseMonthly).sort((a, b) => a - b);
     
-    // Group income by month
     const incomeMonthly = {};
     incomeFiltered.forEach(tx => {
       const d = new Date(tx.date);
@@ -228,16 +269,15 @@ export function ScenarioSimulateModal({
             color: '#fff',
             ...(hoveredBtn === 'close' && {
               backgroundColor: '#c0392b',
-              transform: 'translateY(-2px)',
               boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)'
             })
           }}
-          onClick={onClose}
+          onClick={onCancel}
           onMouseEnter={() => setHoveredBtn('close')}
           onMouseLeave={() => setHoveredBtn(null)}
           aria-label="Close"
         >
-          ×
+          <span style={{ position: 'relative', top: '-1px' }}>×</span>
         </button>
         <h3 style={styles.title}>Scenario Simulation</h3>
         <div style={styles.descriptionBox}>
@@ -256,6 +296,7 @@ export function ScenarioSimulateModal({
               style={{
                 background: 'none',
                 border: 'none',
+                outline: 'none',
                 color: '#2176ae',
                 fontWeight: 600,
                 fontSize: 12,
@@ -377,8 +418,9 @@ export function ScenarioSimulateModal({
         >
           Suggest
         </button>
+        {error && <div style={{ color: '#dc3545', marginTop: 8, fontSize: 13, fontWeight: 600, background: '#ffe5e5', padding: '8px 10px', borderRadius: 6 }}>{error}</div>}
         <div style={{ fontSize: 12, color: '#666', marginTop: 6, lineHeight: 1.4 }}>
-          💡 <strong>Smart Suggest:</strong> Analyzes {modalSelectedBudgetIds.size > 0 ? 'your selected budgets' : 'all'} 12-month trend and suggests budget adjustments based on your actual spending patterns.
+          <strong>Smart Suggest:</strong> Analyzes {modalSelectedBudgetIds.size > 0 ? 'your selected budgets' : 'all'} 12-month trend and suggests budget adjustments based on your actual spending patterns.
         </div>
         {suggested && <div style={{ color: '#2176ae', marginTop: 8, fontSize: 13, fontWeight: 500 }}>Suggested: {suggested}</div>}
       </div>

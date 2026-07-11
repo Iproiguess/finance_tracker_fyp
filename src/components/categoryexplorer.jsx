@@ -4,9 +4,12 @@ import { useTransactions } from '../hooks/usetransactions';
 import { useBudgets } from '../hooks/usebudgets';
 import { CategoryManager } from './categorymanager';
 import { CategoryEditor } from './categoryeditor';
-import { styles, formatCurrency, formatDate, getTransactionColor, getTransactionSign } from './utils/categoryExplorerUtils';
+import { styles, formatCurrency, formatDate, getTransactionColor, getTransactionSign, groupTransactionsByMonth } from './utils/categoryExplorerUtils';
 import { getCurrentSpendingByBudget } from './utils/budgetUtils';
 import { AddTransaction } from './addtransaction';
+import { TransactionDetailsModal } from './TransactionDetailsModal';
+import { DeleteTransactionConfirmModal } from './DeleteTransactionConfirmModal';
+import { AutomationModal } from './AutomationModal';
 
 export function CategoryExplorer() {
   const [editingCategoryId, setEditingCategoryId] = useState(null);
@@ -15,11 +18,11 @@ export function CategoryExplorer() {
   const [showDeleteTransactionConfirm, setShowDeleteTransactionConfirm] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showAutomationModal, setShowAutomationModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [selectedTransactionForDetails, setSelectedTransactionForDetails] = useState(null);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [hoveredAddBtn, setHoveredAddBtn] = useState(false);
-  const [hoveredTransactionDetailsBtn, setHoveredTransactionDetailsBtn] = useState(null);
   const initializedRef = useRef(false);
 
   const { categories, loading: catsLoading, fetchCategories, addCategory, deleteCategory } = useCategories();
@@ -31,17 +34,13 @@ export function CategoryExplorer() {
     setEditingCategory(category);
   };
 
-  // Initialize selected category on first load or when categories change
   useLayoutEffect(() => {
     if (categories.length > 0 && !initializedRef.current) {
       initializedRef.current = true;
-      // This setState is intentional for initialization and won't cause issues
-      // because we use a ref to prevent multiple calls
       setSelectedCategory(categories[0].category_id);
     }
   }, [categories]);
 
-  // Fetch transactions when category changes
   useEffect(() => {
     if (selectedCategory) {
       fetchTransactions(selectedCategory);
@@ -51,29 +50,6 @@ export function CategoryExplorer() {
   useEffect(() => {
     fetchCategoryStats();
   }, [fetchCategoryStats]);
-
-  // Group transactions by month
-  const groupTransactionsByMonth = (txs) => {
-    const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    const grouped = {};
-    
-    txs.forEach(tx => {
-      const date = new Date(tx.date);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const monthLabel = `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
-      
-      if (!grouped[monthKey]) {
-        grouped[monthKey] = { label: monthLabel, transactions: [] };
-      }
-      grouped[monthKey].transactions.push(tx);
-    });
-
-    // Sort by date descending (newest first)
-    return Object.entries(grouped)
-      .sort(([keyA], [keyB]) => keyB.localeCompare(keyA))
-      .map(([/* date */, value]) => value);
-  };
-
 
   if (catsLoading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontSize: 16, color: '#333', fontWeight: 500 }}>Loading categories...</div>;
 
@@ -109,169 +85,47 @@ export function CategoryExplorer() {
       )}
 
       {selectedTransactionForDetails && (
-        <div style={styles.overlay}>
-          <div style={styles.detailsModal}>
-            <div style={styles.detailsHeader}>
-              <h3 style={{ margin: 0, color: '#000', fontWeight: 700 }}>Transaction Details</h3>
-                <button
-                  onClick={() => setSelectedTransactionForDetails(null)}
-                  style={{
-                    backgroundColor: '#dc3545',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    width: '28px',
-                    height: '28px',
-                    display: 'flex',
-                    placeItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '18px',
-                    outline: 'none',
-                    padding: 0,
-                    lineHeight: 'normal',
-                    transition: 'all 0.2s ease',
-                    transformOrigin: 'center',
-                    fontVariantNumeric: 'tabular-nums',
-                    ...(hoveredTransactionDetailsBtn === 'close' && {
-                      backgroundColor: '#c0392b',
-                      transform: 'translateY(-2px)',
-                      boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)'
-                    })
-                  }}
-                  onMouseEnter={() => setHoveredTransactionDetailsBtn('close')}
-                  onMouseLeave={() => setHoveredTransactionDetailsBtn(null)}
-                  aria-label="Close"
-                >
-                  &times;
-                </button>
-            </div>
-            <div style={styles.detailsContent}>
-              <div style={styles.detailRow}>
-                <span style={styles.detailLabel}>Type:</span>
-                <span style={styles.detailValue}>{selectedTransactionForDetails.type}</span>
-              </div>
-              <div style={styles.detailRow}>
-                <span style={styles.detailLabel}>Amount:</span>
-                <span style={{...styles.detailValue, color: getTransactionColor(selectedTransactionForDetails.type)}}>
-                  {getTransactionSign(selectedTransactionForDetails.type)}{formatCurrency(selectedTransactionForDetails.amount)}
-                </span>
-              </div>
-              <div style={styles.detailRow}>
-                <span style={styles.detailLabel}>Description:</span>
-                <span style={styles.detailValue}>{selectedTransactionForDetails.description || 'N/A'}</span>
-              </div>
-              <div style={styles.detailRow}>
-                <span style={styles.detailLabel}>Date:</span>
-                <span style={styles.detailValue}>{formatDate(selectedTransactionForDetails.date)}</span>
-              </div>
-            </div>
-            <div style={styles.detailsActions}>
-              <button
-                onClick={() => {
-                  setEditingTransaction(selectedTransactionForDetails);
-                  setShowAddForm(true);
-                  setSelectedTransactionForDetails(null);
-                }}
-                style={styles.detailsEditBtn}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#088c5e';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.3)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = styles.detailsEditBtn.backgroundColor;
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              >Edit</button>
-              <button
-                onClick={() => {
-                  setTransactionToDelete(selectedTransactionForDetails);
-                  setShowDeleteTransactionConfirm(true);
-                }}
-                style={styles.detailsDeleteBtn}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#dc2626';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.3)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = styles.detailsDeleteBtn.backgroundColor;
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              >Delete</button>
-            </div>
-          </div>
-        </div>
+        <TransactionDetailsModal
+          transaction={selectedTransactionForDetails}
+          onClose={() => setSelectedTransactionForDetails(null)}
+          onEdit={() => {
+            setEditingTransaction(selectedTransactionForDetails);
+            setShowAddForm(true);
+            setSelectedTransactionForDetails(null);
+          }}
+          onDelete={() => {
+            setTransactionToDelete(selectedTransactionForDetails);
+            setShowDeleteTransactionConfirm(true);
+          }}
+        />
       )}
 
       {showDeleteTransactionConfirm && (
-        <div style={styles.overlay}>
-          <div style={{ ...styles.detailsModal, maxWidth: '380px', textAlign: 'center', padding: '40px 28px', borderRadius: '12px', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
-            <h4 style={{ color: '#000', fontSize: '18px', fontWeight: '600', margin: '0 0 8px 0' }}>Delete Transaction?</h4>
-            <p style={{ fontSize: '14px', color: '#555', marginBottom: '24px', lineHeight: '1.5' }}>This action cannot be undone.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <button
-                style={{ 
-                  ...styles.detailsDeleteBtn, 
-                  padding: '14px', 
-                  fontSize: '15px',
-                  fontWeight: '600',
-                  borderRadius: '8px',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#a93226';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(233, 212, 96, 0.2)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#e74c3c';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-                onClick={async () => {
-                  await deleteTransaction(transactionToDelete.transaction_id);
-                  setShowDeleteTransactionConfirm(false);
-                  fetchTransactions(selectedCategory);
-                  fetchCategoryStats();
-                }}
-              >Yes, Delete</button>
-              <button 
-                style={{ 
-                  backgroundColor: '#eee',
-                  color: '#333',
-                  border: 'none',
-                  width: '100%', 
-                  height: '44px',
-                  fontSize: '15px',
-                  fontWeight: '600',
-                  borderRadius: '8px',
-                  transition: 'all 0.2s ease',
-                  cursor: 'pointer'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#d9d9d9';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#eee';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-                onClick={() => setShowDeleteTransactionConfirm(false)}
-              >Cancel</button>
-            </div>
-          </div>
-        </div>
+        <DeleteTransactionConfirmModal
+          onConfirm={async () => {
+            await deleteTransaction(transactionToDelete.transaction_id);
+            setShowDeleteTransactionConfirm(false);
+            fetchTransactions(selectedCategory);
+            fetchCategoryStats();
+          }}
+          onCancel={() => setShowDeleteTransactionConfirm(false)}
+        />
       )}
+
+      {/* Automation Modal */}
+      <AutomationModal
+        open={showAutomationModal}
+        onClose={() => setShowAutomationModal(false)}
+        onAutomationCreated={() => {
+          fetchTransactions(selectedCategory);
+        }}
+      />
 
       {/* sidebar add category */}
       <div style={styles.sidebar}>
+        <div style={{ padding: '6px 12px', borderBottom: '1px solid #2e3347', color: '#8a93a8', fontSize: '10px', fontWeight: '600', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+          Category List:
+        </div>
         <div style={styles.categoryList}>
           {categories.length === 0 ? (
             <div style={{ padding: '20px', textAlign: 'center', color: '#bdc3c7' }}>
@@ -340,8 +194,8 @@ export function CategoryExplorer() {
             style={{
               ...styles.manageCategoryBtn,
               ...(hoveredAddBtn && { 
-                backgroundColor: '#3d4a63',
-                borderColor: '#5a6a85',
+                backgroundColor: '#5a6fff',
+                borderColor: '#6a7fff',
                 transform: 'translateY(-2px)',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
               })
@@ -366,7 +220,7 @@ export function CategoryExplorer() {
               {selectedCategory && !budgetsLoading && !txnLoading && budgets.length > 0 && budgets.filter(b => (b.category_ids || []).includes(selectedCategory)).length > 0 && (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', margin: '4px 0 0 2px' }}>
                   <span style={{ fontSize: 13, color: '#888', fontWeight: 500, marginRight: 4 }}>
-                    Affected Budgets:
+                    Affected Budget(s):
                   </span>
                   {budgets.filter(b => (b.category_ids || []).includes(selectedCategory)).map(budget => {
                     // Calculate total spending for the whole budget (all categories)
@@ -403,35 +257,67 @@ export function CategoryExplorer() {
               )}
             </div>
             {selectedCategory && (
-              <button
-                onClick={() => setShowAddForm(true)}
-                style={{
-                  margin: '0 0 0 32px',
-                  background: '#2980b9',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 6,
-                  padding: '7px 18px',
-                  fontSize: 15,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 4px rgba(41,128,185,0.08)',
-                  transition: 'all 0.2s ease',
-                  alignSelf: 'center',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#1f618d';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(41, 128, 185, 0.3)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#2980b9';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 1px 4px rgba(41,128,185,0.08)';
-                }}
-              >
-                + Add Transaction
-              </button>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  style={{
+                    margin: '0',
+                    background: '#2980b9',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '7px 18px',
+                    fontSize: 15,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 4px rgba(41,128,185,0.08)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#1f618d';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(41, 128, 185, 0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#2980b9';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 1px 4px rgba(41,128,185,0.08)';
+                  }}
+                >
+                  + Add Transaction
+                </button>
+
+                {/* Automation Button */}
+                <button
+                  onClick={() => setShowAutomationModal(true)}
+                  style={{
+                    margin: '0',
+                    background: '#6c757d',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '7px 18px',
+                    fontSize: 15,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 4px rgba(108,117,125,0.08)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#545a63';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(108, 117, 125, 0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#6c757d';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 1px 4px rgba(108,117,125,0.08)';
+                  }}
+                  title="Set up automatic recurring transactions"
+                >
+                  ⚙ Automation
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -478,7 +364,24 @@ export function CategoryExplorer() {
                     }}
                   >
                     <div style={styles.transactionInfo}>
-                      <div style={styles.description}>{transaction.description || 'No description'}</div>
+                      <div style={styles.description}>
+                        {transaction.description || 'No description'}
+                        {transaction.automation_id && (
+                          <span style={{
+                            display: 'inline-block',
+                            marginLeft: '8px',
+                            fontSize: '10px',
+                            padding: '2px 6px',
+                            borderRadius: '3px',
+                            backgroundColor: '#e8f4f8',
+                            color: '#0277bd',
+                            fontWeight: '500',
+                            letterSpacing: '0.5px'
+                          }}>
+                            auto
+                          </span>
+                        )}
+                      </div>
                       <div style={styles.details}>{formatDate(transaction.date)}</div>
                     </div>
                     <div style={styles.amount}>

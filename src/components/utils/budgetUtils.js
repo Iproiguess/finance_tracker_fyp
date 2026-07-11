@@ -1,7 +1,3 @@
-/**
- * Utility functions for budget calculations and operations
- */
-
 export const generateBudgetName = (categoryIds, categories) => {
   if (categoryIds.length === 0) return '';
   const selectedCategories = categoryIds
@@ -10,35 +6,29 @@ export const generateBudgetName = (categoryIds, categories) => {
   return selectedCategories.join(', ');
 };
 
-export const getCurrentSpending = (categoryIds, month, year, transactions) => {
-  const filtered = transactions.filter(txn => {
+const getTransactionsByType = (categoryIds, month, year, transactions, type) => {
+  return transactions.filter(txn => {
     const txnDate = new Date(txn.date);
     return categoryIds.includes(txn.category_id) &&
-           txn.type === 'expense' &&
+           txn.type === type &&
            txnDate.getMonth() + 1 === month &&
            txnDate.getFullYear() === year;
-  });
-  
-  return filtered.reduce((sum, txn) => sum + parseFloat(txn.amount), 0);
+  }).reduce((sum, txn) => sum + parseFloat(txn.amount), 0);
+};
+
+export const getCurrentSpending = (categoryIds, month, year, transactions) => {
+  return getTransactionsByType(categoryIds, month, year, transactions, 'expense');
 };
 
 export const getCurrentIncome = (categoryIds, month, year, transactions) => {
-  const filtered = transactions.filter(txn => {
-    const txnDate = new Date(txn.date);
-    return categoryIds.includes(txn.category_id) &&
-           txn.type === 'income' &&
-           txnDate.getMonth() + 1 === month &&
-           txnDate.getFullYear() === year;
-  });
-  
-  return filtered.reduce((sum, txn) => sum + parseFloat(txn.amount), 0);
+  return getTransactionsByType(categoryIds, month, year, transactions, 'income');
 };
 
 export const getProgressColor = (spent, limit) => {
   const percentage = (spent / limit) * 100;
-  if (percentage >= 100) return '#dc3545'; // overspent
-  if (percentage >= 70) return '#ffc107'; // warning
-  return '#28a745'; // ok
+  if (percentage >= 100) return '#dc3545';
+  if (percentage >= 70) return '#ffc107';
+  return '#28a745';
 };
 
 export const getProgressPercentage = (spent, limit) => {

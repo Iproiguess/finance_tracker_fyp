@@ -48,7 +48,6 @@ export function CategoryManager({ onClose, categories, addCategory }) {
               ...styles.closeBtn,
               ...(hoveredBtn === 'close' && { 
                 backgroundColor: '#c0392b',
-                transform: 'translateY(-2px)',
                 boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)'
               })
             }}
@@ -56,7 +55,7 @@ export function CategoryManager({ onClose, categories, addCategory }) {
             onMouseLeave={() => setHoveredBtn(null)}
             aria-label="Close"
           >
-            &times;
+            <span style={{ position: 'relative', top: '-1px' }}>&times;</span>
           </button>
         </div>
         <div style={styles.content}>
