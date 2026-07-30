@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 
+let automationExecutionPromise = null;
+
 /**
  * Custom hook for managing automated transactions
  * 
@@ -235,219 +237,240 @@ export function useAutomations() {
    * Uses localStorage flag to prevent multiple executions on same day
    */
   const executeDueAutomations = useCallback(async () => {
-    try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        console.log('[AUTOMATION] No authenticated user, skipping');
-        return;
-      }
-      
-      // Get today's date in local timezone (not UTC)
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const today = `${year}-${month}-${day}`;
-      
-      console.log(`[AUTOMATION] Starting execution at ${new Date().toLocaleString()} | Today: ${today}`);
-      
-      // Check if we already executed today (prevent double-execution)
-      const lastExecutionKey = `automation_execution_${user.id}`;
-      const lastExecution = localStorage.getItem(lastExecutionKey);
-      if (lastExecution === today) {
-        console.log(`[AUTOMATION] Already executed today (${today}) - skipping to prevent duplicates`);
-        return;
-      }
-      
-      // Get all active automations for this user
-      const { data: automationsData, error: fetchError } = await supabase
-        .from('automations')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true);
-      
-      if (fetchError) throw fetchError;
-      console.log(`[AUTOMATION] Fetched ${automationsData?.length || 0} active automations for user ${user.id}`);
-      
-      if (!automationsData || automationsData.length === 0) {
-        console.log('[AUTOMATION] No active automations found');
-        localStorage.setItem(lastExecutionKey, today);
-        return;
-      }
-      
-      // Log all automations
-      automationsData.forEach(auto => {
-        console.log(`[AUTOMATION] - ${auto.description} | Freq: ${auto.frequency} | Last Exec: ${auto.last_executed || 'NEVER'} | Start: ${auto.start_date}`);
-      });
-      
-      // Manually check which automations should execute
-      const automationsToExecute = automationsData.filter(automation => {
-        // Don't execute if start date is in the future
-        if (automation.start_date > today) {
-          console.log(`[AUTOMATION] SKIP ${automation.description}: start_date (${automation.start_date}) > today (${today})`);
-          return false;
+    if (automationExecutionPromise) {
+      console.log('[AUTOMATION] Another execution already running, reusing the in-flight run');
+      return automationExecutionPromise;
+    }
+
+    const runExecution = async () => {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+          console.log('[AUTOMATION] No authenticated user, skipping');
+          return;
         }
         
-        // Don't execute if not active
-        if (!automation.is_active) {
-          console.log(`[AUTOMATION] SKIP ${automation.description}: not active`);
-          return false;
+        // Get today's date in local timezone (not UTC)
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const today = `${year}-${month}-${day}`;
+        
+        console.log(`[AUTOMATION] Starting execution at ${new Date().toLocaleString()} | Today: ${today}`);
+        
+        // Check if we already executed today (prevent double-execution)
+        const lastExecutionKey = `automation_execution_${user.id}`;
+        const lastExecution = localStorage.getItem(lastExecutionKey);
+
+        if (lastExecution === today) {
+          console.log(`[AUTOMATION] Already executed today (${today}) - skipping to prevent duplicates`);
+          return;
         }
         
-        // If never executed, check if today >= start_date
-        if (!automation.last_executed) {
-          console.log(`[AUTOMATION] EXECUTE ${automation.description}: never executed before, today >= start_date`);
-          return true;
+        // Get all active automations for this user
+        const { data: automationsData, error: fetchError } = await supabase
+          .from('automations')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_active', true);
+        
+        if (fetchError) throw fetchError;
+        console.log(`[AUTOMATION] Fetched ${automationsData?.length || 0} active automations for user ${user.id}`);
+        
+        if (!automationsData || automationsData.length === 0) {
+          console.log('[AUTOMATION] No active automations found');
+          localStorage.setItem(lastExecutionKey, today);
+          return;
         }
         
-        const lastExecDateOnly = automation.last_executed.split('T')[0];
-        const daysDiff = Math.floor((new Date(today) - new Date(lastExecDateOnly)) / (1000 * 60 * 60 * 24));
-        console.log(`[AUTOMATION] ${automation.description}: last_exec=${lastExecDateOnly}, days_diff=${daysDiff}, freq=${automation.frequency}`);
+        // Log all automations
+        automationsData.forEach(auto => {
+          console.log(`[AUTOMATION] - ${auto.description} | Freq: ${auto.frequency} | Last Exec: ${auto.last_executed || 'NEVER'} | Start: ${auto.start_date}`);
+        });
         
-        // Check based on frequency
-        switch (automation.frequency) {
-          case 'daily':
-            if (daysDiff >= 1) {
-              console.log(`[AUTOMATION] EXECUTE ${automation.description}: daily, daysDiff (${daysDiff}) >= 1`);
-              return true;
-            }
-            break;
-          case 'weekly':
-            if (daysDiff >= 7) {
-              console.log(`[AUTOMATION] EXECUTE ${automation.description}: weekly, daysDiff (${daysDiff}) >= 7`);
-              return true;
-            }
-            break;
-          case 'monthly':
-            if (daysDiff >= 30) {
-              console.log(`[AUTOMATION] EXECUTE ${automation.description}: monthly, daysDiff (${daysDiff}) >= 30`);
-              return true;
-            }
-            break;
-          case 'custom':
-            if (daysDiff >= (automation.frequency_days || 30)) {
-              console.log(`[AUTOMATION] EXECUTE ${automation.description}: custom, daysDiff (${daysDiff}) >= ${automation.frequency_days || 30}`);
-              return true;
-            }
-            break;
-          default:
-            console.log(`[AUTOMATION] SKIP ${automation.description}: unknown frequency ${automation.frequency}`);
+        // Manually check which automations should execute
+        const automationsToExecute = automationsData.filter(automation => {
+          // Don't execute if start date is in the future
+          if (automation.start_date > today) {
+            console.log(`[AUTOMATION] SKIP ${automation.description}: start_date (${automation.start_date}) > today (${today})`);
             return false;
+          }
+          
+          // Don't execute if not active
+          if (!automation.is_active) {
+            console.log(`[AUTOMATION] SKIP ${automation.description}: not active`);
+            return false;
+          }
+          
+          // If never executed, check if today >= start_date
+          if (!automation.last_executed) {
+            console.log(`[AUTOMATION] EXECUTE ${automation.description}: never executed before, today >= start_date`);
+            return true;
+          }
+          
+          const lastExecDateOnly = automation.last_executed.split('T')[0];
+          const daysDiff = Math.floor((new Date(today) - new Date(lastExecDateOnly)) / (1000 * 60 * 60 * 24));
+          console.log(`[AUTOMATION] ${automation.description}: last_exec=${lastExecDateOnly}, days_diff=${daysDiff}, freq=${automation.frequency}`);
+          
+          // Check based on frequency
+          switch (automation.frequency) {
+            case 'daily':
+              if (daysDiff >= 1) {
+                console.log(`[AUTOMATION] EXECUTE ${automation.description}: daily, daysDiff (${daysDiff}) >= 1`);
+                return true;
+              }
+              break;
+            case 'weekly':
+              if (daysDiff >= 7) {
+                console.log(`[AUTOMATION] EXECUTE ${automation.description}: weekly, daysDiff (${daysDiff}) >= 7`);
+                return true;
+              }
+              break;
+            case 'monthly':
+              if (daysDiff >= 30) {
+                console.log(`[AUTOMATION] EXECUTE ${automation.description}: monthly, daysDiff (${daysDiff}) >= 30`);
+                return true;
+              }
+              break;
+            case 'custom':
+              if (daysDiff >= (automation.frequency_days || 30)) {
+                console.log(`[AUTOMATION] EXECUTE ${automation.description}: custom, daysDiff (${daysDiff}) >= ${automation.frequency_days || 30}`);
+                return true;
+              }
+              break;
+            default:
+              console.log(`[AUTOMATION] SKIP ${automation.description}: unknown frequency ${automation.frequency}`);
+              return false;
+          }
+          console.log(`[AUTOMATION] SKIP ${automation.description}: frequency check failed`);
+          return false;
+        });
+        
+        console.log(`[AUTOMATION] ${automationsToExecute.length} automations due for execution`);
+        
+        if (automationsToExecute.length === 0) {
+          // Mark execution as done even if nothing to execute
+          localStorage.setItem(lastExecutionKey, today);
+          console.log('[AUTOMATION] No automations due - marking execution done');
+          return;
         }
-        console.log(`[AUTOMATION] SKIP ${automation.description}: frequency check failed`);
-        return false;
-      });
-      
-      console.log(`[AUTOMATION] ${automationsToExecute.length} automations due for execution`);
-      
-      if (automationsToExecute.length === 0) {
-        // Mark execution as done even if nothing to execute
-        localStorage.setItem(lastExecutionKey, today);
-        console.log('[AUTOMATION] No automations due - marking execution done');
-        return;
-      }
-      
-      // Execute each due automation
-      for (const automation of automationsToExecute) {
-        try {
-          console.log(`[AUTOMATION] Processing: ${automation.description}`);
-          
-          // Double-check automation still exists and is active
-          const { data: checkAuto } = await supabase
-            .from('automations')
-            .select('is_active')
-            .eq('automation_id', automation.automation_id)
-            .single();
-          
-          if (!checkAuto || !checkAuto.is_active) {
-            console.log(`[AUTOMATION] Automation ${automation.automation_id} was deleted or deactivated, skipping`);
-            continue;
-          }
-
-          // Get current user for transaction
-          const { data: { user: txUser }, error: txAuthError } = await supabase.auth.getUser();
-          if (txAuthError || !txUser) {
-            console.log('[AUTOMATION] User auth error during transaction insert');
-            continue;
-          }
-
-          // CRITICAL FIX: Calculate date range for this automation
-          // Determine start date: either first execution or day after last execution
-          let startDateStr = automation.start_date;
-          if (automation.last_executed) {
-            // Add 1 day to last_executed to get next day to process
-            const lastExecDate = new Date(automation.last_executed.split('T')[0]);
-            const nextDate = new Date(lastExecDate);
-            nextDate.setDate(nextDate.getDate() + 1);
-            startDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
-          }
-          
-          console.log(`[AUTOMATION] Date range: ${startDateStr} → ${today}`);
-          
-          // Parse date strings to compare
-          const startDate = new Date(startDateStr);
-          const endDate = new Date(today);
-          
-          // Generate array of dates to create transactions for based on frequency
-          const transactionDates = [];
-          
-          if (automation.frequency === 'daily') {
-            // DAILY: Create transaction for EACH day from start to end
-            // This handles backfill when user was offline multiple days
-            const currentDate = new Date(startDate);
-            while (currentDate <= endDate) {
-              const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
-              transactionDates.push(dateStr);
-              currentDate.setDate(currentDate.getDate() + 1);
-            }
-          } else if (automation.frequency === 'weekly') {
-            // WEEKLY: Create one transaction per week from start to end
-            const currentDate = new Date(startDate);
-            while (currentDate <= endDate) {
-              const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
-              transactionDates.push(dateStr);
-              currentDate.setDate(currentDate.getDate() + 7);
-            }
-          } else if (automation.frequency === 'monthly') {
-            // MONTHLY: Create one transaction per month from start to end
-            const currentDate = new Date(startDate);
-            while (currentDate <= endDate) {
-              const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
-              transactionDates.push(dateStr);
-              currentDate.setMonth(currentDate.getMonth() + 1);
-            }
-          } else if (automation.frequency === 'custom' && automation.frequency_days) {
-            // CUSTOM: Create one transaction per frequency_days from start to end
-            const currentDate = new Date(startDate);
-            while (currentDate <= endDate) {
-              const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
-              transactionDates.push(dateStr);
-              currentDate.setDate(currentDate.getDate() + automation.frequency_days);
-            }
-          }
-          
-          console.log(`[AUTOMATION] Generated ${transactionDates.length} transaction dates: ${transactionDates.slice(0, 3).join(', ')}${transactionDates.length > 3 ? '...' : ''}`);
-          
-          // Create transactions for all calculated dates
-          const transactionsToInsert = transactionDates.map(transactionDate => ({
-            description: automation.description,
-            amount: parseFloat(automation.amount),
-            category_id: automation.category_id,
-            type: automation.type || 'expense',
-            date: transactionDate, // Each transaction gets its respective date (not always today)
-            automation_id: automation.automation_id,
-            user_id: txUser.id,
-          }));
-          
-          if (transactionsToInsert.length > 0) {
-            // Insert all transactions in one batch
-            const { error: insertError } = await supabase
-              .from('transactions')
-              .insert(transactionsToInsert);
-
-            if (insertError) throw insertError;
+        
+        // Execute each due automation
+        for (const automation of automationsToExecute) {
+          try {
+            console.log(`[AUTOMATION] Processing: ${automation.description}`);
             
-            console.log(`[AUTOMATION] ✓ Created ${transactionsToInsert.length} transactions for ${automation.description}`);
+            // Double-check automation still exists and is active
+            const { data: checkAuto } = await supabase
+              .from('automations')
+              .select('is_active')
+              .eq('automation_id', automation.automation_id)
+              .single();
+            
+            if (!checkAuto || !checkAuto.is_active) {
+              console.log(`[AUTOMATION] Automation ${automation.automation_id} was deleted or deactivated, skipping`);
+              continue;
+            }
+
+            // Get current user for transaction
+            const { data: { user: txUser }, error: txAuthError } = await supabase.auth.getUser();
+            if (txAuthError || !txUser) {
+              console.log('[AUTOMATION] User auth error during transaction insert');
+              continue;
+            }
+
+            // CRITICAL FIX: Calculate date range for this automation
+            // Determine start date: either first execution or day after last execution
+            let startDateStr = automation.start_date;
+            if (automation.last_executed) {
+              // Add 1 day to last_executed to get next day to process
+              const lastExecDate = new Date(automation.last_executed.split('T')[0]);
+              const nextDate = new Date(lastExecDate);
+              nextDate.setDate(nextDate.getDate() + 1);
+              startDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
+            }
+            
+            console.log(`[AUTOMATION] Date range: ${startDateStr} → ${today}`);
+            
+            // Parse date strings to compare
+            const startDate = new Date(startDateStr);
+            const endDate = new Date(today);
+            
+            // Generate array of dates to create transactions for based on frequency
+            const transactionDates = [];
+            
+            if (automation.frequency === 'daily') {
+              // DAILY: Create transaction for EACH day from start to end
+              // This handles backfill when user was offline multiple days
+              const currentDate = new Date(startDate);
+              while (currentDate <= endDate) {
+                const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+                transactionDates.push(dateStr);
+                currentDate.setDate(currentDate.getDate() + 1);
+              }
+            } else if (automation.frequency === 'weekly') {
+              // WEEKLY: Create one transaction per week from start to end
+              const currentDate = new Date(startDate);
+              while (currentDate <= endDate) {
+                const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+                transactionDates.push(dateStr);
+                currentDate.setDate(currentDate.getDate() + 7);
+              }
+            } else if (automation.frequency === 'monthly') {
+              // MONTHLY: Create one transaction per month from start to end
+              const currentDate = new Date(startDate);
+              while (currentDate <= endDate) {
+                const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+                transactionDates.push(dateStr);
+                currentDate.setMonth(currentDate.getMonth() + 1);
+              }
+            } else if (automation.frequency === 'custom' && automation.frequency_days) {
+              // CUSTOM: Create one transaction per frequency_days from start to end
+              const currentDate = new Date(startDate);
+              while (currentDate <= endDate) {
+                const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+                transactionDates.push(dateStr);
+                currentDate.setDate(currentDate.getDate() + automation.frequency_days);
+              }
+            }
+            
+            console.log(`[AUTOMATION] Generated ${transactionDates.length} transaction dates: ${transactionDates.slice(0, 3).join(', ')}${transactionDates.length > 3 ? '...' : ''}`);
+            
+            // Avoid inserting duplicates by checking existing automation transactions first
+            const { data: existingTransactions, error: existingError } = await supabase
+              .from('transactions')
+              .select('transaction_id, date')
+              .eq('automation_id', automation.automation_id)
+              .in('date', transactionDates);
+
+            if (existingError) throw existingError;
+
+            const existingDates = new Set((existingTransactions || []).map(tx => tx.date));
+            const transactionsToInsert = transactionDates
+              .filter(transactionDate => !existingDates.has(transactionDate))
+              .map(transactionDate => ({
+                description: automation.description,
+                amount: parseFloat(automation.amount),
+                category_id: automation.category_id,
+                type: automation.type || 'expense',
+                date: transactionDate, // Each transaction gets its respective date (not always today)
+                automation_id: automation.automation_id,
+                user_id: txUser.id,
+              }));
+
+            if (transactionsToInsert.length === 0) {
+              console.log(`[AUTOMATION] All ${transactionDates.length} candidate dates already exist for ${automation.description}, skipping inserts`);
+            } else {
+              // Insert only the missing transactions
+              const { error: insertError } = await supabase
+                .from('transactions')
+                .insert(transactionsToInsert);
+
+              if (insertError) throw insertError;
+              
+              console.log(`[AUTOMATION] ✓ Created ${transactionsToInsert.length} transactions for ${automation.description}`);
+            }
             
             // Update last_executed timestamp to today (not the last transaction date)
             // This ensures we don't re-process the same period tomorrow
@@ -457,20 +480,27 @@ export function useAutomations() {
               .eq('automation_id', automation.automation_id);
               
             console.log(`[AUTOMATION] Updated last_executed for ${automation.description}`);
+          } catch (err) {
+            console.error(`[AUTOMATION] ✗ Error executing automation ${automation.automation_id}:`, err);
           }
-        } catch (err) {
-          console.error(`[AUTOMATION] ✗ Error executing automation ${automation.automation_id}:`, err);
         }
+        
+        // Mark execution as done to prevent duplicate runs today
+        localStorage.setItem(lastExecutionKey, today);
+        console.log(`[AUTOMATION] ✓ Execution completed. Set localStorage flag to ${today}`);
+        
+        // Refresh automations list after execution
+        await fetchAutomations();
+      } catch (err) {
+        console.error('[AUTOMATION] ✗ Error executing due automations:', err);
       }
-      
-      // Mark execution as done to prevent duplicate runs today
-      localStorage.setItem(lastExecutionKey, today);
-      console.log(`[AUTOMATION] ✓ Execution completed. Set localStorage flag to ${today}`);
-      
-      // Refresh automations list after execution
-      await fetchAutomations();
-    } catch (err) {
-      console.error('[AUTOMATION] ✗ Error executing due automations:', err);
+    };
+
+    automationExecutionPromise = runExecution();
+    try {
+      return await automationExecutionPromise;
+    } finally {
+      automationExecutionPromise = null;
     }
   }, [fetchAutomations]);
 

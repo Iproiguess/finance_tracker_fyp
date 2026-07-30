@@ -25,26 +25,38 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   const [receiptPreview, setReceiptPreview] = useState('');
   const [receiptData, setReceiptData] = useState(null);
   const [selectedCandidate, setSelectedCandidate] = useState('');
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const videoRef = useRef(null);
+  const cameraContainerRef = useRef(null);
+  const cameraStreamRef = useRef(null);
   const workerRef = useRef(null);
 
-  // Revoke preview URLs whenever `receiptPreview` changes or on unmount.
+  const stopCamera = () => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach(track => track.stop());
+      cameraStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+  };
+
+  // Revoke preview URLs, stop camera, and terminate OCR worker when component unmounts.
   useEffect(() => {
     return () => {
       if (receiptPreview) {
-        try { URL.revokeObjectURL(receiptPreview); } catch (e) { /* ignore */ }
+        try { URL.revokeObjectURL(receiptPreview); } catch { /* ignore */ }
       }
-    };
-  }, [receiptPreview]);
-
-  // Terminate the OCR worker only when the component unmounts.
-  useEffect(() => {
-    return () => {
+      stopCamera();
       if (workerRef.current) {
-        try { workerRef.current.terminate(); } catch (e) { /* ignore */ }
+        try { workerRef.current.terminate(); } catch { /* ignore */ }
         workerRef.current = null;
       }
     };
-  }, []);
+  }, [receiptPreview]);
 
   const submitTransaction = async (payload = formData) => {
     // Reuse the same submission path for both manual entry and parsed receipt data.
@@ -117,7 +129,6 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
       return;
     }
 
-    // Keep the preview visible while OCR runs so the user can confirm the image.
     if (receiptPreview) {
       URL.revokeObjectURL(receiptPreview);
     }
@@ -128,7 +139,6 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
     setReceiptPreview(URL.createObjectURL(file));
 
     try {
-      // OCR is expensive, so keep one worker alive for repeated uploads in the same session.
       if (!workerRef.current) {
         workerRef.current = await createWorker('eng');
       }
@@ -148,7 +158,6 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
         date: parsed.date || prev.date
       }));
       setReceiptData(parsed);
-      // initialize selected candidate to parsed selection or description
       setSelectedCandidate(parsed.selected || parsed.description || '');
       setReceiptMessage(`Receipt detected: ${parsed.description || 'Unknown merchant'} • ${parsed.amount ? `$${parsed.amount.toFixed(2)}` : 'amount pending'}`);
       setError('');
@@ -157,6 +166,90 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
     } finally {
       setReceiptProcessing(false);
       event.target.value = '';
+    }
+  };
+
+  const openCamera = async () => {
+    setCameraError('');
+    setCameraLoading(true);
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera access is not supported by this browser.');
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      cameraStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setCameraActive(true);
+      setTimeout(() => {
+        if (cameraContainerRef.current) {
+          cameraContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    } catch (err) {
+      setCameraError(err.message || 'Unable to access the camera. Please use upload instead.');
+    } finally {
+      setCameraLoading(false);
+    }
+  };
+
+  const captureReceiptPhoto = async () => {
+    if (!videoRef.current) return;
+
+    const video = videoRef.current;
+    const width = video.videoWidth || 1280;
+    const height = video.videoHeight || 720;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, width, height);
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+    if (!blob) {
+      setReceiptMessage('Unable to capture a photo from the camera.');
+      return;
+    }
+
+    const file = new File([blob], 'receipt.jpg', { type: 'image/jpeg' });
+    if (receiptPreview) {
+      URL.revokeObjectURL(receiptPreview);
+    }
+
+    setReceiptProcessing(true);
+    setReceiptMessage('');
+    setReceiptData(null);
+    setReceiptPreview(URL.createObjectURL(file));
+
+    try {
+      if (!workerRef.current) {
+        workerRef.current = await createWorker('eng');
+      }
+
+      const { data: { text } } = await workerRef.current.recognize(file);
+      const parsed = parseReceiptText(text);
+
+      if (!parsed.amount && !parsed.description) {
+        throw new Error('No transaction details could be read from that receipt. Please try another image.');
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        type: parsed.type || prev.type,
+        amount: parsed.amount ? String(parsed.amount) : prev.amount,
+        description: parsed.description || prev.description,
+        date: parsed.date || prev.date
+      }));
+      setReceiptData(parsed);
+      setSelectedCandidate(parsed.selected || parsed.description || '');
+      setReceiptMessage(`Receipt detected: ${parsed.description || 'Unknown merchant'} • ${parsed.amount ? `$${parsed.amount.toFixed(2)}` : 'amount pending'}`);
+      setError('');
+      stopCamera();
+    } catch (err) {
+      setReceiptMessage(err.message || 'Unable to read the receipt. Please try again.');
+    } finally {
+      setReceiptProcessing(false);
     }
   };
 
@@ -212,16 +305,46 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
             </div>
             <div style={styles.field}>
               <label style={styles.label}>Receipt photo</label>
-              <label style={styles.receiptUploadButton} className="category-explorer-animated-btn">
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
-                  capture="environment"
-                  onChange={handleReceiptUpload}
-                  style={styles.hiddenInput}
-                />
-                {receiptProcessing ? 'Reading receipt...' : 'Upload receipt'}
-              </label>
+              <div style={styles.receiptButtonRow}>
+                <label style={styles.receiptUploadButton} className="category-explorer-animated-btn">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
+                    capture="environment"
+                    onChange={handleReceiptUpload}
+                    style={styles.hiddenInput}
+                  />
+                  {receiptProcessing ? 'Reading receipt...' : 'Upload receipt'}
+                </label>
+                <button
+                  type="button"
+                  onClick={cameraActive ? stopCamera : openCamera}
+                  disabled={cameraLoading || receiptProcessing}
+                  style={styles.scanButton}
+                >
+                  {cameraActive ? 'Stop camera' : cameraLoading ? 'Starting camera...' : 'Take a photo'}
+                </button>
+              </div>
+              {cameraError && <div style={styles.receiptStatusBox}>{cameraError}</div>}
+              {cameraActive && (
+                <div ref={cameraContainerRef} style={styles.cameraContainer}>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    style={styles.cameraPreview}
+                  />
+                  <button
+                    type="button"
+                    onClick={captureReceiptPhoto}
+                    disabled={receiptProcessing}
+                    style={styles.captureButton}
+                  >
+                    {receiptProcessing ? 'Capturing...' : 'Take photo'}
+                  </button>
+                </div>
+              )}
               {receiptPreview && <img src={receiptPreview} alt="Receipt preview" style={styles.receiptPreview} />}
               {receiptMessage && <div style={styles.receiptStatusBox}>{receiptMessage}</div>}
 

@@ -1,24 +1,49 @@
-
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { supabase } from './lib/supabase';
-import { formatDateToDDMMYYYY } from './utils/dateFormatter';
-import flatpickr from 'flatpickr';
 import 'flatpickr/dist/flatpickr.min.css';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTransactions } from './hooks/usetransactions';
 import { useBudgets } from './hooks/usebudgets';
+import { useCategories } from './hooks/usecategories';
 import { useAutomations } from './hooks/useAutomations';
+import { buildAdviceNotifications } from './utils/adviceEngine';
 import Login from './login';
 import UpdatePassword from './updatepassword';
 import { CategoryExplorer } from './components/categoryexplorer';
 import BudgetPage from './components/budget';
 import Analysis from './components/analysis';
 import { appStyles } from './styles/appStyles';
+import { supabase } from './lib/supabase';
 
 function App() {
   const [session, setSession] = useState(null);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [view, setView] = useState('explorer'); // 'explorer' | 'budget' | 'analysis'
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState([]);
+  const [readNotificationIds, setReadNotificationIds] = useState([]);
   const [activeFeatures, setActiveFeatures] = useState({ forecast: false, simulation: false, heatmap: false }); // toggle states
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
+  const [mobileMainMenuOpen, setMobileMainMenuOpen] = useState(false);
+  const [mobileAnalysisMenuOpen, setMobileAnalysisMenuOpen] = useState(false);
+  const [mobileCategoryOpen, setMobileCategoryOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+
+  const isMobile = viewportWidth <= 768;
+
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleMobileNavSelect = (newView) => {
+    setView(newView);
+    setMobileMainMenuOpen(false);
+    if (newView === 'analysis') {
+      setMobileAnalysisMenuOpen(true);
+    } else {
+      setMobileAnalysisMenuOpen(false);
+    }
+  };
 
   // Get current month in YYYY-MM format
   const getCurrentMonthString = () => {
@@ -36,8 +61,31 @@ function App() {
     return `${year}-${month}`;
   };
 
-  // Fetch transactions to calculate oldest date
+  // Fetch transactions and categories used by the advice engine.
   const { transactions, fetchTransactions } = useTransactions();
+  const { categories } = useCategories();
+
+  useEffect(() => {
+    if (!selectedCategory && categories.length > 0) {
+      setSelectedCategory(categories[0].category_id);
+    }
+  }, [categories, selectedCategory]);
+
+  // Get all budgets before building notification advice.
+  const { budgets } = useBudgets();
+
+  // Build advice-based notifications from budgets, transactions, and categories.
+  const derivedNotifications = useMemo(() => {
+    return buildAdviceNotifications(budgets, transactions, categories);
+  }, [budgets, transactions, categories]);
+
+  const activeNotifications = useMemo(() => {
+    return derivedNotifications.filter((item) => !dismissedNotificationIds.includes(item.id));
+  }, [derivedNotifications, dismissedNotificationIds]);
+
+  const unreadCount = useMemo(() => {
+    return activeNotifications.filter((item) => !readNotificationIds.includes(item.id)).length;
+  }, [activeNotifications, readNotificationIds]);
 
   // Get today's month for default "to" date
   const getTodayMonth = useCallback(() => {
@@ -128,9 +176,6 @@ function App() {
 
     setMonth('all');
   }, []);
-
-  // Fetch all budgets to use for date calculations
-  const { budgets } = useBudgets();
 
   // Get automation functions for daily execution
   const { executeDueAutomations } = useAutomations();
@@ -378,88 +423,267 @@ function App() {
             alert("Success! Password changed. Please log in.");
           }} 
         />
-      </div>
-    );
-  }
-
+              </div>
+            )
+          }
   if (!session) {
     return (
       <Login onAuthSuccess={() => {}} />
     );
   }
 
+  const handleNotificationToggle = () => {
+    setNotificationOpen((open) => {
+      const nextOpen = !open;
+      if (nextOpen) {
+        // Mark all active notifications as read when the list is opened.
+        setReadNotificationIds(activeNotifications.map((item) => item.id));
+      }
+      return nextOpen;
+    });
+  };
+
+  const dismissNotification = (id) => {
+    setDismissedNotificationIds((prev) => [...prev, id]);
+  };
+
   return (
     <div style={appStyles.appContainer}>
       <div style={appStyles.navbar}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {isMobile && (
+            <button
+              type="button"
+              onClick={() => setMobileCategoryOpen(true)}
+              style={appStyles.mobileNavIconButton}
+              aria-label="Open categories"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12h18" />
+                <path d="M3 6h18" />
+                <path d="M3 18h18" />
+              </svg>
+            </button>
+          )}
           <h1 style={appStyles.logo}>Finance Tracker</h1>
-          {session && (
+          {session && !isMobile && (
             <span style={appStyles.welcomeText}>
               Welcome, {session.user.user_metadata?.display_name || 'User'}
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'stretch', marginLeft: 'auto', gap: 0, justifyContent: 'flex-end' }}>
-          <button
-            onClick={() => setView('explorer')}
-            style={view === 'explorer'
-              ? { ...appStyles.menuBtn, ...appStyles.menuBtnActive, minWidth: 120 }
-              : { ...appStyles.menuBtn, ...appStyles.menuBtnInactive, minWidth: 120 }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'none';
-            }}
-          >Explorer</button>
-          <button
-            onClick={() => setView('analysis')}
-            style={view === 'analysis'
-              ? { ...appStyles.menuBtn, ...appStyles.menuBtnActive, minWidth: 120 }
-              : { ...appStyles.menuBtn, ...appStyles.menuBtnInactive, minWidth: 120 }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'none';
-            }}
-          >Analysis</button>
-          <button
-            onClick={() => setView('budget')}
-            style={view === 'budget'
-              ? { ...appStyles.menuBtn, ...appStyles.menuBtnActive, minWidth: 120 }
-              : { ...appStyles.menuBtn, ...appStyles.menuBtnInactive, minWidth: 120 }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'none';
-            }}
-          >Budget</button>
-          {session && (
-            <button 
-              onClick={() => supabase.auth.signOut()} 
-              style={{ ...appStyles.logoutBtn, minWidth: 120, height: '64px', alignItems: 'center' }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 53, 69, 0.3)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(30,34,47,0.10)';
-              }}
-            >
-              Logout
-            </button>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : 0, marginLeft: 'auto', justifyContent: 'flex-end', position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={appStyles.notificationContainer}>
+              <button
+                type="button"
+                onClick={handleNotificationToggle}
+                style={notificationOpen ? { ...appStyles.notificationBtn, ...appStyles.notificationBtnActive } : appStyles.notificationBtn}
+                aria-label="Notification center"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill={notificationOpen ? 'currentColor' : 'none'}
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ display: 'block' }}
+                >
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                {activeNotifications.length > 0 && (
+                  <span style={appStyles.notificationCount}>{activeNotifications.length}</span>
+                )}
+                {unreadCount > 0 && <span style={appStyles.notificationDot} />}
+              </button>
+
+              {notificationOpen && (
+                <div style={appStyles.notificationPanel}>
+                  <div style={appStyles.notificationHeader}>Notifications</div>
+                  {activeNotifications.length === 0 ? (
+                    <div style={appStyles.notificationEmpty}>No notifications yet</div>
+                  ) : (
+                    activeNotifications.map((item, index) => {
+                      const isAlternate = index % 2 === 1;
+                      const isUnread = !readNotificationIds.includes(item.id);
+                      const itemStyle = isUnread
+                        ? isAlternate ? appStyles.notificationItemNewAlternate : appStyles.notificationItemNew
+                        : isAlternate ? appStyles.notificationItemAlternate : appStyles.notificationItem;
+                      return (
+                        <div key={item.id} style={itemStyle}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+                            <div style={appStyles.notificationText}>{item.text}</div>
+                            <button
+                              type="button"
+                              onClick={() => dismissNotification(item.id)}
+                              style={appStyles.notificationDismissBtn}
+                              aria-label="Dismiss notification"
+                            >
+                              ×
+                            </button>
+                          </div>
+                          <div style={appStyles.notificationMeta}>{item.context}</div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+            {isMobile ? (
+              <button
+                type="button"
+                onClick={() => setMobileMainMenuOpen(true)}
+                style={appStyles.mobileNavIconButton}
+                aria-label="Open main menu"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 6h16" />
+                  <path d="M4 12h16" />
+                  <path d="M4 18h16" />
+                </svg>
+              </button>
+            ) : (
+              <div style={{ display: 'flex', gap: 0 }}>
+                <button
+                  onClick={() => handleMobileNavSelect('explorer')}
+                  style={view === 'explorer'
+                    ? { ...appStyles.menuBtn, ...appStyles.menuBtnActive, ...appStyles.menuBtnOverlap, minWidth: 120 }
+                    : { ...appStyles.menuBtn, ...appStyles.menuBtnInactive, ...appStyles.menuBtnOverlap, minWidth: 120 }}
+                >Explorer</button>
+                <button
+                  onClick={() => handleMobileNavSelect('analysis')}
+                  style={view === 'analysis'
+                    ? { ...appStyles.menuBtn, ...appStyles.menuBtnActive, ...appStyles.menuBtnOverlap, minWidth: 120 }
+                    : { ...appStyles.menuBtn, ...appStyles.menuBtnInactive, ...appStyles.menuBtnOverlap, minWidth: 120 }}
+                >Analysis</button>
+                <button
+                  onClick={() => handleMobileNavSelect('budget')}
+                  style={view === 'budget'
+                    ? { ...appStyles.menuBtn, ...appStyles.menuBtnActive, ...appStyles.menuBtnOverlap, minWidth: 120 }
+                    : { ...appStyles.menuBtn, ...appStyles.menuBtnInactive, ...appStyles.menuBtnOverlap, minWidth: 120 }}
+                >Budget</button>
+                {session && (
+                  <button
+                    onClick={() => supabase.auth.signOut()}
+                    style={{ ...appStyles.logoutBtn, ...appStyles.menuBtnOverlap, minWidth: 120, height: '64px', alignItems: 'center' }}
+                  >
+                    Logout
+                  </button>
+                )}
+                </div>
+            )
+          }
+          </div>
         </div>
       </div>
+      {isMobile && mobileCategoryOpen && (
+        <>
+          <div style={appStyles.mobileDrawerBackdrop} onClick={() => setMobileCategoryOpen(false)} />
+          <div style={{ ...appStyles.mobileCategoryDrawer, ...appStyles.mobileDrawerOpen }}>
+            <button type="button" onClick={() => setMobileCategoryOpen(false)} style={appStyles.mobileDrawerCloseButton} aria-label="Close categories">×</button>
+            <div style={appStyles.mobileNavTitle}>Categories</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {categories.length === 0 ? (
+                <div style={{ color: '#48535b', fontSize: '14px', lineHeight: 1.6 }}>
+                  No categories available yet.
+                </div>
+              ) : (
+                categories.map(category => (
+                  <button
+                    key={category.category_id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory(category.category_id);
+                      setView('explorer');
+                      setMobileCategoryOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '14px 16px',
+                      borderRadius: '12px',
+                      border: '1px solid #d8dce2',
+                      backgroundColor: selectedCategory === category.category_id ? '#eaf4ff' : '#fff',
+                      color: '#1f2937',
+                      cursor: 'pointer',
+                      fontSize: '15px',
+                      fontWeight: selectedCategory === category.category_id ? 700 : 600,
+                    }}
+                  >
+                    {category.category_name}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
+      {isMobile && mobileMainMenuOpen && (
+        <>
+          <div style={appStyles.mobileDrawerBackdrop} onClick={() => setMobileMainMenuOpen(false)} />
+          <div style={{ ...appStyles.mobileDrawer, ...appStyles.mobileDrawerOpen }}>
+            <button type="button" onClick={() => setMobileMainMenuOpen(false)} style={appStyles.mobileDrawerCloseButton} aria-label="Close menu">×</button>
+            <div style={appStyles.mobileNavTitle}>Menu</div>
+            <button type="button" onClick={() => handleMobileNavSelect('explorer')} style={appStyles.mobileMenuItem}>Explorer</button>
+            <button type="button" onClick={() => handleMobileNavSelect('analysis')} style={appStyles.mobileMenuItem}>Analysis</button>
+            <button type="button" onClick={() => handleMobileNavSelect('budget')} style={appStyles.mobileMenuItem}>Budget</button>
+            {session && (
+              <button type="button" onClick={() => { setMobileMainMenuOpen(false); supabase.auth.signOut(); }} style={appStyles.mobileMenuItem}>Logout</button>
+            )}
+            <div style={appStyles.mobileSubsection}>
+              <button type="button" onClick={() => { setMobileAnalysisMenuOpen(true); setMobileMainMenuOpen(false); }} style={appStyles.mobileMenuItem}>Analysis options</button>
+              <button type="button" onClick={() => { setMobileCategoryOpen(true); setMobileMainMenuOpen(false); }} style={appStyles.mobileMenuItem}>Categories</button>
+            </div>
+          </div>
+        </>
+      )}
+      {isMobile && mobileAnalysisMenuOpen && (
+        <>
+          <div style={appStyles.mobileDrawerBackdrop} onClick={() => setMobileAnalysisMenuOpen(false)} />
+          <div style={{ ...appStyles.mobileAnalysisDrawer, ...appStyles.mobileDrawerOpen }}>
+            <button type="button" onClick={() => setMobileAnalysisMenuOpen(false)} style={appStyles.mobileDrawerCloseButton} aria-label="Close analysis menu">×</button>
+            <div style={appStyles.mobileNavTitle}>Analysis options</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                onClick={() => setActiveFeatures(prev => ({ ...prev, forecast: !prev.forecast }))}
+                style={activeFeatures.forecast ? { ...appStyles.featureBtnActive, width: '100%', textAlign:'left' } : { ...appStyles.featureBtnInactive, width: '100%', textAlign:'left' }}
+              >Forecast</button>
+              <button
+                onClick={() => setActiveFeatures(prev => ({ ...prev, simulation: !prev.simulation }))}
+                style={activeFeatures.simulation ? { ...appStyles.featureBtnActive, width: '100%', textAlign:'left' } : { ...appStyles.featureBtnInactive, width: '100%', textAlign:'left' }}
+              >Simulation</button>
+              <button
+                onClick={() => setActiveFeatures(prev => ({ ...prev, heatmap: !prev.heatmap }))}
+                style={activeFeatures.heatmap ? { ...appStyles.featureBtnActive, width: '100%', textAlign:'left' } : { ...appStyles.featureBtnInactive, width: '100%', textAlign:'left' }}
+              >Heatmap</button>
+            </div>
+            <div style={{ marginTop: '20px' }}>
+              <div style={{ marginBottom: '10px', fontWeight: 600 }}>Date range</div>
+              <label htmlFor="mobile-start-date" style={{ display: 'block', marginBottom: '6px', fontSize: '14px' }}>From</label>
+              <input
+                id="mobile-start-date"
+                type="month"
+                value={selectedStartMonth === 'all' ? '' : selectedStartMonth}
+                onChange={e => updateAnalysisMonthFromDate(e.target.value, setSelectedStartMonth)}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d0d4dd', marginBottom: '12px', fontSize: '14px' }}
+              />
+              <label htmlFor="mobile-end-date" style={{ display: 'block', marginBottom: '6px', fontSize: '14px' }}>To</label>
+              <input
+                id="mobile-end-date"
+                type="month"
+                value={selectedEndMonth === 'all' ? '' : selectedEndMonth}
+                onChange={e => updateAnalysisMonthFromDate(e.target.value, setSelectedEndMonth)}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d0d4dd', fontSize: '14px' }}
+              />
+            </div>
+          </div>
+        </>
+      )}
       {view === 'analysis' && (
         <div style={{...appStyles.submenu, display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
           <div style={{ display: 'flex', gap: '0' }}>
@@ -725,7 +949,7 @@ function App() {
       )}
       <div style={appStyles.mainContent}>
         {view === 'explorer' && (
-          <CategoryExplorer />
+          <CategoryExplorer selectedCategoryId={selectedCategory} onCategorySelect={setSelectedCategory} isMobile={isMobile} />
         )}
 
         {view === 'budget' && (

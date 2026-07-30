@@ -4,7 +4,7 @@ export const styles = {
   sidebar: { width: '260px', backgroundColor: '#23273a', borderRight: '1px solid #2e3347', display: 'flex', flexDirection: 'column', color: '#e7eaf1', height: '100%', minHeight: 0, overflowY: 'hidden' },
   sidebarHeader: { padding: 0, borderBottom: '1px solid #2e3347', display: 'flex', justifyContent: 'center', alignItems: 'center', margin: 0, height: '0px', borderRadius: '0' },
   manageCategoryBtn: {
-    background: '#4a5fef',
+    backgroundColor: '#4a5fef',
     color: '#e7eaf1',
     border: '1px solid #5a6fff',
     padding: '10px 12px',

@@ -11,12 +11,12 @@ import { TransactionDetailsModal } from './TransactionDetailsModal';
 import { DeleteTransactionConfirmModal } from './DeleteTransactionConfirmModal';
 import { AutomationModal } from './AutomationModal';
 
-export function CategoryExplorer() {
+export function CategoryExplorer({ selectedCategoryId = null, onCategorySelect = null, isMobile = false }) {
   const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
   const [transactionToDelete, setTransactionToDelete] = useState(null);
   const [showDeleteTransactionConfirm, setShowDeleteTransactionConfirm] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [internalSelectedCategory, setInternalSelectedCategory] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showAutomationModal, setShowAutomationModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -34,12 +34,15 @@ export function CategoryExplorer() {
     setEditingCategory(category);
   };
 
+  const selectedCategory = selectedCategoryId ?? internalSelectedCategory;
+  const sidebarStyle = isMobile ? { ...styles.sidebar, display: 'none' } : styles.sidebar;
+
   useLayoutEffect(() => {
-    if (categories.length > 0 && !initializedRef.current) {
+    if (!selectedCategoryId && categories.length > 0 && !initializedRef.current) {
       initializedRef.current = true;
-      setSelectedCategory(categories[0].category_id);
+      setInternalSelectedCategory(categories[0].category_id);
     }
-  }, [categories]);
+  }, [categories, selectedCategoryId]);
 
   useEffect(() => {
     if (selectedCategory) {
@@ -122,7 +125,7 @@ export function CategoryExplorer() {
       />
 
       {/* sidebar add category */}
-      <div style={styles.sidebar}>
+      <div style={sidebarStyle}>
         <div style={{ padding: '6px 12px', borderBottom: '1px solid #2e3347', color: '#8a93a8', fontSize: '10px', fontWeight: '600', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
           Category List:
         </div>
@@ -141,7 +144,13 @@ export function CategoryExplorer() {
               return (
                 <div
                   key={category.category_id}
-                  onClick={() => setSelectedCategory(category.category_id)}
+                  onClick={() => {
+                    if (onCategorySelect) {
+                      onCategorySelect(category.category_id);
+                    } else {
+                      setInternalSelectedCategory(category.category_id);
+                    }
+                  }}
                   style={{
                     ...styles.categoryItem,
                     backgroundColor: isActive ? '#455a64' : '#34495e',

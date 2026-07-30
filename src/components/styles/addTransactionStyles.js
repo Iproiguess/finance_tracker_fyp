@@ -102,6 +102,46 @@ export const styles = {
     cursor: 'pointer',
     textAlign: 'center'
   },
+  receiptButtonRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: uiTheme.spacing.sm,
+    width: '100%'
+  },
+  scanButton: {
+    width: '100%',
+    padding: uiTheme.spacing.sm,
+    borderRadius: '8px',
+    border: '1.5px solid ' + uiTheme.colors.accent,
+    backgroundColor: '#fff',
+    color: uiTheme.colors.accent,
+    fontWeight: 600,
+    cursor: 'pointer'
+  },
+  cameraContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: uiTheme.spacing.sm,
+    marginTop: uiTheme.spacing.sm
+  },
+  cameraPreview: {
+    width: '100%',
+    minHeight: '260px',
+    maxHeight: '420px',
+    height: '40vh',
+    borderRadius: '12px',
+    backgroundColor: '#000',
+    objectFit: 'cover'
+  },
+  captureButton: {
+    padding: uiTheme.spacing.sm,
+    borderRadius: '8px',
+    border: 'none',
+    backgroundColor: uiTheme.colors.accent,
+    color: 'white',
+    fontWeight: 700,
+    cursor: 'pointer'
+  },
   receiptPreview: {
     width: '100%',
     maxHeight: '180px',
