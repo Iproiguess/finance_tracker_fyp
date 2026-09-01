@@ -117,6 +117,14 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
   pointer-events: none !important;
 }
 
+/* Remove the native focus outline from Recharts SVG chart elements */
+.recharts-wrapper svg:focus,
+.recharts-responsive-container svg:focus,
+.recharts-wrapper svg:focus-visible,
+.recharts-responsive-container svg:focus-visible {
+  outline: none !important;
+}
+
 /* Slightly smaller on Budget card where inputs are narrower */
 .budget-card .flatpickr-input.flatpickr-alt-input { width: 80px; right: 36px; }
 
@@ -149,7 +157,7 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
   box-shadow: none !important;
   outline: none !important;
   width: 120px !important;
-  padding: 5px 12px 5px 8px !important;
+  padding: 5px 12px 5px 34px !important;
   font-size: 12px !important;
   font-weight: 500 !important;
   border-radius: 4px !important;
@@ -157,11 +165,23 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
 }
 
 /* Ensure any flatpickr-created alt input always uses the scoped class if present */
-.flatpickr-input.flatpickr-alt-input.analysis-flatpickr-input,
 .flatpickr-input.flatpickr-alt-input.budget-flatpickr-input {
   background: #fff !important;
   color: #000 !important;
   border: 1px solid #ccc !important;
   box-shadow: none !important;
   padding: 5px 12px 5px 8px !important;
+}
+
+@media (max-width: 768px) {
+  * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
 }

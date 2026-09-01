@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { styles } from './styles/analysisStyles';
 import { formatCurrency } from './styles/budgetSummaryStyles';
 
@@ -67,6 +67,50 @@ export function HeatmapSection({
   
   // State for year selection
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  const heatmapScrollerRef = useRef(null);
+  const heatmapDragRef = useRef({ active: false, moved: false, startX: 0, startScrollLeft: 0 });
+
+  const handleHeatmapPointerDown = (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const scroller = heatmapScrollerRef.current;
+    if (!scroller) return;
+
+    heatmapDragRef.current = {
+      active: true,
+      moved: false,
+      startX: event.clientX,
+      startScrollLeft: scroller.scrollLeft,
+    };
+    scroller.style.cursor = 'grabbing';
+    scroller.style.userSelect = 'none';
+  };
+
+  const handleHeatmapPointerMove = (event) => {
+    const drag = heatmapDragRef.current;
+    const scroller = heatmapScrollerRef.current;
+    if (!drag.active || !scroller) return;
+
+    if (Math.abs(event.clientX - drag.startX) > 4) {
+      drag.moved = true;
+    }
+    scroller.scrollLeft = drag.startScrollLeft - (event.clientX - drag.startX);
+  };
+
+  const handleHeatmapPointerUp = (event) => {
+    const wasDragged = heatmapDragRef.current.moved;
+    const scroller = heatmapScrollerRef.current;
+    if (scroller) {
+      scroller.style.cursor = 'grab';
+      scroller.style.userSelect = '';
+    }
+    heatmapDragRef.current.active = false;
+    if (wasDragged) {
+      window.setTimeout(() => {
+        heatmapDragRef.current.moved = false;
+      }, 0);
+    }
+  };
   
   // Toggle cell selection
   const toggleCell = (day) => {
@@ -324,7 +368,17 @@ export function HeatmapSection({
         </p>
 
         {/* Heatmap Grid */}
-        <div style={{ overflowX: 'auto', overflowY: 'hidden', marginBottom: '16px' }}>
+        <div
+          ref={heatmapScrollerRef}
+          onPointerDown={handleHeatmapPointerDown}
+          onPointerMove={handleHeatmapPointerMove}
+          onPointerUp={handleHeatmapPointerUp}
+          onPointerCancel={handleHeatmapPointerUp}
+          onPointerLeave={(event) => {
+            if (heatmapDragRef.current.active) handleHeatmapPointerUp(event);
+          }}
+          style={{ overflowX: 'auto', overflowY: 'hidden', marginBottom: '16px', cursor: 'grab', touchAction: 'pan-x' }}
+        >
           <div style={{ display: 'inline-block', minWidth: '100%' }}>
             {/* Month labels - Calculate month sections */}
             {(() => {
@@ -404,7 +458,9 @@ export function HeatmapSection({
                         style={{
                           width: '14px',
                           height: '14px',
-                          backgroundColor: day ? getSpendingColor(day.spending) : '#000000',
+                          backgroundColor: selectedCells.some(c => c.dateStr === day?.dateStr)
+                            ? '#1688ff'
+                            : day ? getSpendingColor(day.spending) : '#000000',
                           border: '1px solid #000',
                           borderRadius: '2px',
                           cursor: day ? 'pointer' : 'default',
@@ -413,7 +469,14 @@ export function HeatmapSection({
                             ? '0 0 8px rgba(0,0,0,0.4), inset 0 0 0 2px #fff'
                             : 'none',
                         }}
-                        onClick={() => day && toggleCell(day)}
+                        onClick={(event) => {
+                          if (heatmapDragRef.current.moved) {
+                            event.preventDefault();
+                            heatmapDragRef.current.moved = false;
+                            return;
+                          }
+                          if (day) toggleCell(day);
+                        }}
                         title={day ? `${day.dateStr}: ${formatCurrency(day.spending)}` : ''}
                       />
                     ))}

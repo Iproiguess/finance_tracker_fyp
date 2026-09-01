@@ -29,7 +29,7 @@ const TrendChartTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-export function Analysis({ activeFeatures = { forecast: false, simulation: false, heatmap: false }, setActiveFeatures = () => {}, selectedStartMonth = 'all', selectedEndMonth, fetchTransactions, handleBudgetsChanged = () => {} }) {
+export function Analysis({ activeFeatures = { forecast: false, simulation: false, heatmap: false }, setActiveFeatures = () => {}, selectedStartMonth = 'all', selectedEndMonth, fetchTransactions, handleBudgetsChanged = () => {}, isMobile: isMobileProp = false, mobileBudgetSidebarOpen = false, onMobileBudgetSidebarToggle = () => {} }) {
   const { budgets, loading: budgetsLoading } = useBudgets();
   const { transactions, loading: transactionsLoading } = useTransactions();
   const { categories, loading: categoriesLoading } = useCategories();
@@ -52,7 +52,14 @@ export function Analysis({ activeFeatures = { forecast: false, simulation: false
   const [modalSelectedBudgetIds, setModalSelectedBudgetIds] = React.useState(new Set());
   const [showScenarioModal, setShowScenarioModal] = React.useState(false);
   const [lastBudgetFetchTime, setLastBudgetFetchTime] = React.useState(0);
+  const [viewportIsMobile, setViewportIsMobile] = React.useState(() => window.innerWidth <= 768);
   const simulationInitializedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    const handleResize = () => setViewportIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const { loading, selectedBudgetIds, setSelectedBudgetIds, toggleBudgetSelection, filteredBudgets, summaryData, monthlyTableData, categoryChartData, monthlyTrendData, simulationResult, setSimulationResult } = useAnalysisData(budgets, transactions, categories, budgetsLoading, transactionsLoading, categoriesLoading, selectedStartMonth, finalSelectedEndMonth);
 
@@ -124,21 +131,45 @@ export function Analysis({ activeFeatures = { forecast: false, simulation: false
     setSimulationResult({ categories: results, impactOnTotal: totalSimulated - totalCurrent, simulateType, mode, value, selectedCategoryIds: Array.from(selectedCategoryIds), selectedBudgetIds: Array.from(budgetsToSimulate.map(b => b.budget_id)) });
   };
 
+  const isMobileView = isMobileProp || viewportIsMobile;
+
+  const renderBudgetSidebar = () => (
+    <div style={isMobileView ? {
+      ...styles.sidebarDrawer,
+      left: 0,
+      right: 'auto',
+      transform: mobileBudgetSidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+      width: '74vw',
+      maxWidth: '320px',
+      borderLeft: 'none',
+      borderRight: '1px solid rgba(255,255,255,0.08)',
+      boxShadow: '8px 0 24px rgba(0,0,0,0.22)',
+      zIndex: mobileBudgetSidebarOpen ? 102 : 90,
+      padding: '8px 14px 16px'
+    } : styles.sidebar}>
+      <div style={isMobileView ? { ...styles.sidebarHeader, marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)' } : styles.sidebarHeader}>
+        <h3 style={isMobileView ? { ...styles.sidebarTitle, margin: '0 0 6px 0', color: '#8a93a8', fontSize: '14px', fontWeight: 600, letterSpacing: '0.4px' } : styles.sidebarTitle}>Budgets</h3>
+        <p style={isMobileView ? { ...styles.sidebarSubtitle, fontSize: '12px', color: '#8a93a8', fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase' } : styles.sidebarSubtitle}>{selectedBudgetIds.size === 0 ? 'All' : `${selectedBudgetIds.size}`} selected</p>
+      </div>
+      <div style={styles.budgetList}>
+        {budgets.length === 0 ? (<div style={styles.emptyBudgetText}>No budgets created yet</div>) : (budgets.map(budget => { const spent = getCurrentSpendingByBudget(budget, transactions); const limit = parseFloat(budget.monthly_limit || 0); const isSelected = selectedBudgetIds.has(budget.budget_id); const period = budget.month ? `${MONTH_NAMES[budget.month - 1]} ${budget.year}` : `${budget.year}`; return (<div key={budget.budget_id} onClick={() => toggleBudgetSelection(budget.budget_id)} style={styles.budgetItem(isSelected)} onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#3d5a80'; e.currentTarget.style.border = '2px solid #3498db'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(52, 152, 219, 0.15)'; e.currentTarget.style.transform = 'translateY(-1px)'; }} onMouseLeave={(e) => { const baseStyle = styles.budgetItem(isSelected); e.currentTarget.style.backgroundColor = baseStyle.backgroundColor; e.currentTarget.style.border = baseStyle.border; e.currentTarget.style.boxShadow = baseStyle.boxShadow; e.currentTarget.style.transform = baseStyle.transform; }} title={`Click to ${isSelected ? 'deselect' : 'select'} this budget`}><div style={styles.budgetItemHeader}><span style={styles.budgetName}>{budget.budget_name || 'Unnamed'}</span></div><div style={styles.budgetPeriod}>{period}</div><div style={styles.budgetAmount}>{formatCurrency(spent)} / {formatCurrency(limit)}</div></div>); }))}
+      </div>
+      <div style={styles.budgetListFooter}>
+        <button onClick={() => setSelectedBudgetIds(new Set())} style={{ ...styles.clearAllBtn, width: '100%' }} onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#3498db'; e.currentTarget.style.color = 'white'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(52, 152, 219, 0.3)'; }} onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#3498db'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}>Clear All</button>
+        <div style={styles.budgetHint}>Click on budgets to select multiple and check specific budgets</div>
+      </div>
+    </div>
+  );
+
   return (
     <div style={styles.container}>
-      <div style={styles.sidebar}>
-        <div style={styles.sidebarHeader}>
-          <h3 style={styles.sidebarTitle}>Budgets</h3>
-          <p style={styles.sidebarSubtitle}>{selectedBudgetIds.size === 0 ? 'All' : `${selectedBudgetIds.size}`} selected</p>
-        </div>
-        <div style={styles.budgetList}>
-          {budgets.length === 0 ? (<div style={styles.emptyBudgetText}>No budgets created yet</div>) : (budgets.map(budget => { const spent = getCurrentSpendingByBudget(budget, transactions); const limit = parseFloat(budget.monthly_limit || 0); const isSelected = selectedBudgetIds.has(budget.budget_id); const period = budget.month ? `${MONTH_NAMES[budget.month - 1]} ${budget.year}` : `${budget.year}`; return (<div key={budget.budget_id} onClick={() => toggleBudgetSelection(budget.budget_id)} style={styles.budgetItem(isSelected)} onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#3d5a80'; e.currentTarget.style.border = '2px solid #3498db'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(52, 152, 219, 0.15)'; e.currentTarget.style.transform = 'translateY(-1px)'; }} onMouseLeave={(e) => { const baseStyle = styles.budgetItem(isSelected); e.currentTarget.style.backgroundColor = baseStyle.backgroundColor; e.currentTarget.style.border = baseStyle.border; e.currentTarget.style.boxShadow = baseStyle.boxShadow; e.currentTarget.style.transform = baseStyle.transform; }} title={`Click to ${isSelected ? 'deselect' : 'select'} this budget`}><div style={styles.budgetItemHeader}><span style={styles.budgetName}>{budget.budget_name || 'Unnamed'}</span></div><div style={styles.budgetPeriod}>{period}</div><div style={styles.budgetAmount}>{formatCurrency(spent)} / {formatCurrency(limit)}</div></div>); }))}
-        </div>
-        <div style={styles.budgetListFooter}>
-          <button onClick={() => setSelectedBudgetIds(new Set())} style={{ ...styles.clearAllBtn, width: '100%' }} onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#3498db'; e.currentTarget.style.color = 'white'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(52, 152, 219, 0.3)'; }} onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#3498db'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}>Clear All</button>
-          <div style={styles.budgetHint}>Click on budgets to select multiple and check specific budgets</div>
-        </div>
-      </div>
+      {isMobileView && mobileBudgetSidebarOpen && (
+        <>
+          <div style={{ ...styles.sidebarDrawerBackdrop, zIndex: 101 }} onClick={() => onMobileBudgetSidebarToggle(false)} />
+          {renderBudgetSidebar()}
+        </>
+      )}
+      {!isMobileView && renderBudgetSidebar()}
       <ScenarioSimulateModal 
         open={showScenarioModal} 
         onClose={() => setShowScenarioModal(false)}
@@ -203,7 +234,25 @@ export function Analysis({ activeFeatures = { forecast: false, simulation: false
             <h2 style={styles.pageTitle}>Finance Analysis {selectedBudgetIds.size > 0 && `(${selectedBudgetIds.size} budget${selectedBudgetIds.size !== 1 ? 's' : ''})`}</h2>
           </div>
           
-          {monthlyTrendData.length > 0 && (<div style={styles.sectionContainer}><h3 style={styles.sectionTitle}>Monthly Spending Trend (Last 12 Months)</h3><p style={{ fontSize: '12px', color: '#7f8c8d', margin: '0 0 12px 0' }}>Red line = Expenses, Green line = Income. Hover over points to see exact amounts.</p><ResponsiveContainer width="100%" height={350}><LineChart data={monthlyTrendData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }} isAnimationActive={true} animationDuration={800} animationEasing="ease-in-out"><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis tickFormatter={(value) => `${value}`} /><Tooltip content={<TrendChartTooltip />} /><Legend wrapperStyle={{ paddingTop: '12px' }} /><Line type="monotone" dataKey="spent" stroke="#e74c3c" name="Spending" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} isAnimationActive={true} animationDuration={800} animationEasing="ease-in-out" /><Line type="monotone" dataKey="income" stroke="#27ae60" name="Income" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} isAnimationActive={true} animationDuration={800} animationEasing="ease-in-out" /></LineChart></ResponsiveContainer></div>)}
+          {monthlyTrendData.length > 0 && (
+            <div style={{ ...styles.sectionContainer, width: '100%' }}>
+              <h3 style={styles.sectionTitle}>Monthly Spending Trend (Last 12 Months)</h3>
+              <p style={{ fontSize: '12px', color: '#7f8c8d', margin: '0 0 12px 0' }}>Red line = Expenses, Green line = Income. Hover over points to see exact amounts.</p>
+              <div style={{ ...styles.chartContainer, width: '100%', padding: 0, marginBottom: 0 }}>
+                <ResponsiveContainer width="100%" height={350}>
+                  <LineChart data={monthlyTrendData} margin={{ top: 10, right: 20, left: 20, bottom: 5 }} isAnimationActive={true} animationDuration={800} animationEasing="ease-in-out">
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis tickFormatter={(value) => `${value}`} />
+                    <Tooltip content={<TrendChartTooltip />} />
+                    <Legend wrapperStyle={{ paddingTop: '12px' }} />
+                    <Line type="monotone" dataKey="spent" stroke="#e74c3c" name="Spending" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} isAnimationActive={true} animationDuration={800} animationEasing="ease-in-out" />
+                    <Line type="monotone" dataKey="income" stroke="#27ae60" name="Income" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} isAnimationActive={true} animationDuration={800} animationEasing="ease-in-out" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
 
         <p style={{ fontSize: '13px', color: '#7f8c8d', marginBottom: '16px', fontStyle: 'italic' }}>Budgets follow a monthly cycle and reset at the beginning of each month</p>
 

@@ -11,7 +11,7 @@ import { TransactionDetailsModal } from './TransactionDetailsModal';
 import { DeleteTransactionConfirmModal } from './DeleteTransactionConfirmModal';
 import { AutomationModal } from './AutomationModal';
 
-export function CategoryExplorer({ selectedCategoryId = null, onCategorySelect = null, isMobile = false }) {
+export function CategoryExplorer({ selectedCategoryId = null, onCategorySelect = null, isMobile = false, openCategoryManager = false, onCategoryManagerHandled = null }) {
   const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
   const [transactionToDelete, setTransactionToDelete] = useState(null);
@@ -43,6 +43,15 @@ export function CategoryExplorer({ selectedCategoryId = null, onCategorySelect =
       setInternalSelectedCategory(categories[0].category_id);
     }
   }, [categories, selectedCategoryId]);
+
+  useEffect(() => {
+    if (openCategoryManager) {
+      setShowCategoryManager(true);
+      if (onCategoryManagerHandled) {
+        onCategoryManagerHandled();
+      }
+    }
+  }, [openCategoryManager, onCategoryManagerHandled]);
 
   useEffect(() => {
     if (selectedCategory) {
@@ -153,39 +162,48 @@ export function CategoryExplorer({ selectedCategoryId = null, onCategorySelect =
                   }}
                   style={{
                     ...styles.categoryItem,
-                    backgroundColor: isActive ? '#455a64' : '#34495e',
+                    background: isActive ? 'linear-gradient(135deg, rgba(91,109,255,0.24) 0%, rgba(29,38,70,0.95) 100%)' : 'rgba(255,255,255,0.06)',
                     borderLeft: `4px solid ${categoryColor}`,
-                    borderRight: isActive ? `2px solid ${categoryColor}` : '1px solid #455a64'
+                    borderRight: isActive ? `1px solid ${categoryColor}` : '1px solid rgba(255,255,255,0.08)'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#455a64';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(52, 152, 219, 0.2)';
+                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(91,109,255,0.28) 0%, rgba(29,38,70,0.98) 100%)';
+                    e.currentTarget.style.boxShadow = '0 10px 24px rgba(53,66,110,0.24)';
                     e.currentTarget.style.transform = 'translateY(-2px)';
                   }}
                   onMouseLeave={(e) => {
                     const baseStyle = styles.categoryItem;
-                    e.currentTarget.style.backgroundColor = isActive ? '#455a64' : '#34495e';
+                    e.currentTarget.style.background = isActive ? 'linear-gradient(135deg, rgba(91,109,255,0.24) 0%, rgba(29,38,70,0.95) 100%)' : 'rgba(255,255,255,0.06)';
                     e.currentTarget.style.boxShadow = baseStyle.boxShadow;
                     e.currentTarget.style.transform = baseStyle.transform;
                   }}
                 >
                   <div style={styles.categoryItemContent}>
-                    <span style={styles.categoryName}>{category.category_name}</span>
-                    <div style={styles.categoryItemStats}>
-                      <span style={{ color: '#27ae60' }}>₊{formatCurrency(stats.income)}</span>
-                      <span style={{ color: '#e74c3c' }}>₋{formatCurrency(stats.expense)}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                        <span style={{ width: '10px', height: '10px', borderRadius: '999px', background: categoryColor, boxShadow: `0 0 0 4px ${categoryColor}22` }} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={styles.categoryName}>{category.category_name}</div>
+                          <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>Income & expense</div>
+                        </div>
+                      </div>
+                      {isActive && <span style={{ padding: '4px 8px', borderRadius: '999px', background: 'rgba(125, 211, 252, 0.16)', color: '#7dd3fc', fontSize: '11px', fontWeight: 700 }}>Active</span>}
                     </div>
-                    <div style={{ marginTop: '8px' }}>
+                    <div style={styles.categoryItemStats}>
+                      <span style={{ padding: '4px 8px', borderRadius: '999px', background: 'rgba(34,197,94,0.16)', color: '#4ade80', fontWeight: 700 }}>↑ {formatCurrency(stats.income)}</span>
+                      <span style={{ padding: '4px 8px', borderRadius: '999px', background: 'rgba(248,113,113,0.16)', color: '#fda4af', fontWeight: 700 }}>↓ {formatCurrency(stats.expense)}</span>
+                    </div>
+                    <div style={{ marginTop: '10px' }}>
                       <button
                         style={{
-                          backgroundColor: '#3498db',
+                          background: 'linear-gradient(135deg, #4f8cff 0%, #2f6de9 100%)',
                           color: 'white',
                           border: 'none',
-                          borderRadius: '4px',
+                          borderRadius: '8px',
                           padding: '6px 12px',
                           cursor: 'pointer',
                           fontSize: '12px',
-                          fontWeight: 'bold',
+                          fontWeight: '700',
                           transition: 'background-color 0.2s',
                           width: '100%'
                         }}
@@ -221,8 +239,8 @@ export function CategoryExplorer({ selectedCategoryId = null, onCategorySelect =
       {/* not sidebar */}
       <div style={styles.mainContent}>
         <div style={styles.header}>
-          <div style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={isMobile ? { display: 'flex', width: '100%', flexDirection: 'column', alignItems: 'flex-start', gap: '10px' } : { display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', width: isMobile ? '100%' : 'auto' }}>
               <h2 style={styles.headerTitle}>
                 {categories.find(c => c.category_id === selectedCategory)?.category_name || 'Select Category'}
               </h2>
@@ -266,7 +284,7 @@ export function CategoryExplorer({ selectedCategoryId = null, onCategorySelect =
               )}
             </div>
             {selectedCategory && (
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <div style={isMobile ? { display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'stretch', width: '100%' } : { display: 'flex', gap: '10px', alignItems: 'center' }}>
                 <button
                   onClick={() => setShowAddForm(true)}
                   style={{
@@ -275,12 +293,16 @@ export function CategoryExplorer({ selectedCategoryId = null, onCategorySelect =
                     color: '#fff',
                     border: 'none',
                     borderRadius: 6,
-                    padding: '7px 18px',
+                    padding: isMobile ? '10px 14px' : '7px 18px',
                     fontSize: 15,
                     fontWeight: 600,
                     cursor: 'pointer',
                     boxShadow: '0 1px 4px rgba(41,128,185,0.08)',
                     transition: 'all 0.2s ease',
+                    width: isMobile ? '100%' : 'auto',
+                    justifyContent: isMobile ? 'center' : 'flex-start',
+                    display: 'flex',
+                    alignItems: 'center',
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = '#1f618d';
@@ -305,12 +327,16 @@ export function CategoryExplorer({ selectedCategoryId = null, onCategorySelect =
                     color: '#fff',
                     border: 'none',
                     borderRadius: 6,
-                    padding: '7px 18px',
+                    padding: isMobile ? '10px 14px' : '7px 18px',
                     fontSize: 15,
                     fontWeight: 600,
                     cursor: 'pointer',
                     boxShadow: '0 1px 4px rgba(108,117,125,0.08)',
                     transition: 'all 0.2s ease',
+                    width: isMobile ? '100%' : 'auto',
+                    justifyContent: isMobile ? 'center' : 'flex-start',
+                    display: 'flex',
+                    alignItems: 'center',
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = '#545a63';

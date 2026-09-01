@@ -75,6 +75,60 @@ export const styles = {
     overflowY: 'hidden'
   },
 
+  sidebarDrawerBackdrop: {
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: 'rgba(13, 18, 36, 0.45)',
+    zIndex: 99
+  },
+
+  sidebarDrawer: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: '84vw',
+    maxWidth: '360px',
+    backgroundColor: '#2c3e50',
+    borderRight: '1px solid rgba(255,255,255,0.08)',
+    boxShadow: '10px 0 28px rgba(0,0,0,0.24)',
+    padding: '16px',
+    display: 'flex',
+    flexDirection: 'column',
+    color: '#fff',
+    zIndex: 100,
+    transform: 'translateX(-100%)',
+    transition: 'transform 220ms ease-in-out'
+  },
+
+  sidebarDrawerOpen: {
+    transform: 'translateX(0)'
+  },
+
+  sidebarToggleButton: {
+    border: '1px solid #3498db',
+    backgroundColor: '#ffffff',
+    color: '#2c3e50',
+    borderRadius: '999px',
+    padding: '8px 12px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: 600
+  },
+
+  sidebarCloseButton: {
+    alignSelf: 'flex-end',
+    background: 'transparent',
+    border: 'none',
+    color: '#f8fafc',
+    fontSize: '24px',
+    fontWeight: 700,
+    lineHeight: 1,
+    cursor: 'pointer',
+    padding: '0',
+    margin: '-4px -4px 0 0'
+  },
+
   sidebarHeader: {
     marginBottom: '16px'
   },
@@ -328,20 +382,20 @@ export const styles = {
   },
 
   chartContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5',
     borderRadius: '8px',
     padding: '16px',
-    border: '1px solid #ddd',
-    minHeight: '510px',
+    border: 'none',
+    minHeight: '0',
     display: 'flex',
     flexDirection: 'column'
   },
 
   fullWidthChartContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5',
     borderRadius: '8px',
     padding: '16px',
-    border: '1px solid #ddd',
+    border: 'none',
     marginTop: '24px'
   },
 

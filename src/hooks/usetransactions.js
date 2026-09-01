@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 export function useTransactions() {
@@ -6,8 +6,10 @@ export function useTransactions() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [categoryStats, setCategoryStats] = useState({});
+  const fetchRequestId = useRef(0);
 
   const fetchTransactions = useCallback(async (categoryId = null) => {
+    const requestId = ++fetchRequestId.current;
     setError(null);
     try {
       setLoading(true);
@@ -25,11 +27,17 @@ export function useTransactions() {
       }
       const { data, error } = await query.order('date', { ascending: false });
       if (error) throw error;
-      setTransactions(data || []);
+      if (requestId === fetchRequestId.current) {
+        setTransactions(data || []);
+      }
     } catch (err) {
-      setError(err.message);
+      if (requestId === fetchRequestId.current) {
+        setError(err.message);
+      }
     } finally {
-      setLoading(false);
+      if (requestId === fetchRequestId.current) {
+        setLoading(false);
+      }
     }
   }, []);
 

@@ -23,9 +23,11 @@ function App() {
   const [activeFeatures, setActiveFeatures] = useState({ forecast: false, simulation: false, heatmap: false }); // toggle states
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   const [mobileMainMenuOpen, setMobileMainMenuOpen] = useState(false);
-  const [mobileAnalysisMenuOpen, setMobileAnalysisMenuOpen] = useState(false);
   const [mobileCategoryOpen, setMobileCategoryOpen] = useState(false);
+  const [mobileAnalysisBudgetOpen, setMobileAnalysisBudgetOpen] = useState(false);
+  const [mobileOpenCategoryManager, setMobileOpenCategoryManager] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [hoveredMobileMenuItem, setHoveredMobileMenuItem] = useState(null);
 
   const isMobile = viewportWidth <= 768;
 
@@ -35,14 +37,22 @@ function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    if (isMobile && view !== 'explorer') {
+      setMobileCategoryOpen(false);
+    }
+  }, [isMobile, view]);
+
+  useEffect(() => {
+    if (isMobile && view !== 'analysis') {
+      setMobileAnalysisBudgetOpen(false);
+    }
+  }, [isMobile, view]);
+
   const handleMobileNavSelect = (newView) => {
     setView(newView);
     setMobileMainMenuOpen(false);
-    if (newView === 'analysis') {
-      setMobileAnalysisMenuOpen(true);
-    } else {
-      setMobileAnalysisMenuOpen(false);
-    }
+    setMobileCategoryOpen(false);
   };
 
   // Get current month in YYYY-MM format
@@ -62,7 +72,7 @@ function App() {
   };
 
   // Fetch transactions and categories used by the advice engine.
-  const { transactions, fetchTransactions } = useTransactions();
+  const { transactions, fetchTransactions, categoryStats } = useTransactions();
   const { categories } = useCategories();
 
   useEffect(() => {
@@ -86,6 +96,47 @@ function App() {
   const unreadCount = useMemo(() => {
     return activeNotifications.filter((item) => !readNotificationIds.includes(item.id)).length;
   }, [activeNotifications, readNotificationIds]);
+
+  const formatCurrencyValue = useCallback((value) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 0,
+    }).format(Number(value || 0));
+  }, []);
+
+  const getMobileMenuButtonStyle = useCallback((key, isActive) => {
+    const baseStyle = {
+      ...appStyles.mobileMenuItem,
+      width: '100%',
+      margin: 0,
+      borderRadius: '0',
+      padding: '22px 22px 18px 22px',
+      border: 'none',
+      backgroundColor: 'rgba(255,255,255,0.08)',
+      boxShadow: 'none',
+      textAlign: 'left',
+      transition: 'background-color 160ms ease, color 160ms ease',
+      boxSizing: 'border-box',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+      lineHeight: 1.2,
+      fontSize: '20px',
+      cursor: 'pointer',
+      color: '#f8fafc',
+    };
+
+    if (isActive) {
+      return { ...baseStyle, backgroundColor: 'rgba(255,255,255,0.12)' };
+    }
+
+    if (hoveredMobileMenuItem === key) {
+      return { ...baseStyle, backgroundColor: 'rgba(255,255,255,0.18)' };
+    }
+
+    return baseStyle;
+  }, [hoveredMobileMenuItem]);
 
   // Get today's month for default "to" date
   const getTodayMonth = useCallback(() => {
@@ -451,21 +502,49 @@ function App() {
     <div style={appStyles.appContainer}>
       <div style={appStyles.navbar}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {isMobile && (
+          {isMobile && view === 'explorer' && (
             <button
               type="button"
               onClick={() => setMobileCategoryOpen(true)}
-              style={appStyles.mobileNavIconButton}
+              style={{
+                ...appStyles.mobileEdgeRailButton,
+                left: 0,
+                right: 'auto',
+                borderRight: '1px solid rgba(255,255,255,0.08)',
+                borderLeft: 'none',
+                borderRadius: 0,
+              }}
               aria-label="Open categories"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 12h18" />
-                <path d="M3 6h18" />
-                <path d="M3 18h18" />
-              </svg>
+              <span style={appStyles.mobileEdgeRailHandle}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'translateX(-1px)' }}>
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </span>
             </button>
           )}
-          <h1 style={appStyles.logo}>Finance Tracker</h1>
+          {isMobile && view === 'analysis' && (
+            <button
+              type="button"
+              onClick={() => setMobileAnalysisBudgetOpen(true)}
+              style={{
+                ...appStyles.mobileEdgeRailButton,
+                left: 0,
+                right: 'auto',
+                borderRight: '1px solid rgba(255,255,255,0.08)',
+                borderLeft: 'none',
+                borderRadius: 0,
+              }}
+              aria-label="Open budgets"
+            >
+              <span style={appStyles.mobileEdgeRailHandle}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'translateX(-1px)' }}>
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </span>
+            </button>
+          )}
+          <h1 style={{ ...appStyles.logo, fontSize: isMobile ? '16px' : '18px', lineHeight: isMobile ? '1.2' : '64px' }}>Finance Tracker</h1>
           {session && !isMobile && (
             <span style={appStyles.welcomeText}>
               Welcome, {session.user.user_metadata?.display_name || 'User'}
@@ -534,20 +613,28 @@ function App() {
                 </div>
               )}
             </div>
-            {isMobile ? (
+            {isMobile && (
               <button
                 type="button"
                 onClick={() => setMobileMainMenuOpen(true)}
-                style={appStyles.mobileNavIconButton}
+                style={{
+                  ...appStyles.mobileEdgeRailButton,
+                  right: 0,
+                  left: 'auto',
+                  borderLeft: '1px solid rgba(255,255,255,0.08)',
+                  borderRight: 'none',
+                  borderRadius: 0,
+                }}
                 aria-label="Open main menu"
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 6h16" />
-                  <path d="M4 12h16" />
-                  <path d="M4 18h16" />
-                </svg>
+                <span style={appStyles.mobileEdgeRailHandle}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'translateX(1px)' }}>
+                    <path d="M15 18l-6-6 6-6" />
+                  </svg>
+                </span>
               </button>
-            ) : (
+            )}
+            {!isMobile && (
               <div style={{ display: 'flex', gap: 0 }}>
                 <button
                   onClick={() => handleMobileNavSelect('explorer')}
@@ -581,112 +668,164 @@ function App() {
           </div>
         </div>
       </div>
-      {isMobile && mobileCategoryOpen && (
+      {isMobile && mobileCategoryOpen && view === 'explorer' && (
         <>
           <div style={appStyles.mobileDrawerBackdrop} onClick={() => setMobileCategoryOpen(false)} />
-          <div style={{ ...appStyles.mobileCategoryDrawer, ...appStyles.mobileDrawerOpen }}>
-            <button type="button" onClick={() => setMobileCategoryOpen(false)} style={appStyles.mobileDrawerCloseButton} aria-label="Close categories">×</button>
-            <div style={appStyles.mobileNavTitle}>Categories</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{
+            ...appStyles.mobileCategoryDrawer,
+            ...appStyles.mobileDrawerOpen,
+            opacity: view === 'budget' && isMobile ? 0.55 : 1,
+            filter: view === 'budget' && isMobile ? 'grayscale(0.2)' : 'none',
+          }}>
+            <div style={{ padding: '8px 12px 0', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <div style={{ padding: '6px 0 10px', color: '#8a93a8', fontSize: '10px', fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+                Category List:
+              </div>
+            </div>
+            <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', flex: 1 }}>
               {categories.length === 0 ? (
-                <div style={{ color: '#48535b', fontSize: '14px', lineHeight: 1.6 }}>
-                  No categories available yet.
+                <div style={{ padding: '20px', textAlign: 'center', color: '#bdc3c7' }}>
+                  <p>No categories yet.</p>
+                  <p style={{ fontSize: '13px', marginTop: '8px' }}>Click "+ New Category" to get started!</p>
                 </div>
               ) : (
-                categories.map(category => (
-                  <button
-                    key={category.category_id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedCategory(category.category_id);
-                      setView('explorer');
-                      setMobileCategoryOpen(false);
-                    }}
-                    style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      padding: '14px 16px',
-                      borderRadius: '12px',
-                      border: '1px solid #d8dce2',
-                      backgroundColor: selectedCategory === category.category_id ? '#eaf4ff' : '#fff',
-                      color: '#1f2937',
-                      cursor: 'pointer',
-                      fontSize: '15px',
-                      fontWeight: selectedCategory === category.category_id ? 700 : 600,
-                    }}
-                  >
-                    {category.category_name}
-                  </button>
-                ))
+                categories.map(category => {
+                  const stats = categoryStats[category.category_id] || { income: 0, expense: 0 };
+                  const isActive = selectedCategory === category.category_id;
+                  const categoryColor = category.color_code || '#3498db';
+
+                  return (
+                    <div
+                      key={category.category_id}
+                      onClick={() => {
+                        setSelectedCategory(category.category_id);
+                        setView('explorer');
+                        setMobileCategoryOpen(false);
+                      }}
+                      style={{
+                        padding: '12px',
+                        borderRadius: '0',
+                        borderLeft: `4px solid ${categoryColor}`,
+                        borderRight: isActive ? `1px solid ${categoryColor}` : '1px solid rgba(255,255,255,0.08)',
+                        borderTop: '1px solid rgba(255,255,255,0.06)',
+                        borderBottom: '1px solid rgba(255,255,255,0.06)',
+                        background: isActive ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)',
+                        color: '#f8fafc',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                          <span style={{ width: '10px', height: '10px', borderRadius: '0', background: categoryColor, display: 'inline-block' }} />
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, color: '#f8fafc' }}>{category.category_name}</div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>Income & expense</div>
+                          </div>
+                        </div>
+                        {isActive && <span style={{ padding: '4px 8px', background: 'rgba(125, 211, 252, 0.16)', color: '#7dd3fc', fontSize: '11px', fontWeight: 700 }}>Selected</span>}
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '12px' }}>
+                        <span style={{ padding: '4px 8px', background: 'rgba(34,197,94,0.16)', color: '#4ade80', fontWeight: 700 }}>↑ {formatCurrencyValue(stats.income)}</span>
+                        <span style={{ padding: '4px 8px', background: 'rgba(248,113,113,0.16)', color: '#fda4af', fontWeight: 700 }}>↓ {formatCurrencyValue(stats.expense)}</span>
+                      </div>
+                    </div>
+                  );
+                })
               )}
+            </div>
+            <div style={{ padding: '12px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileOpenCategoryManager(true);
+                  setMobileCategoryOpen(false);
+                  setView('explorer');
+                }}
+                style={{
+                  width: '100%',
+                  background: 'linear-gradient(135deg, #5468ff 0%, #3f5dff 100%)',
+                  color: '#e7eaf1',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  padding: '10px 12px',
+                  borderRadius: '0',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  boxShadow: 'none',
+                }}
+              >
+                + New Category
+              </button>
             </div>
           </div>
         </>
       )}
       {isMobile && mobileMainMenuOpen && (
         <>
-          <div style={appStyles.mobileDrawerBackdrop} onClick={() => setMobileMainMenuOpen(false)} />
-          <div style={{ ...appStyles.mobileDrawer, ...appStyles.mobileDrawerOpen }}>
-            <button type="button" onClick={() => setMobileMainMenuOpen(false)} style={appStyles.mobileDrawerCloseButton} aria-label="Close menu">×</button>
-            <div style={appStyles.mobileNavTitle}>Menu</div>
-            <button type="button" onClick={() => handleMobileNavSelect('explorer')} style={appStyles.mobileMenuItem}>Explorer</button>
-            <button type="button" onClick={() => handleMobileNavSelect('analysis')} style={appStyles.mobileMenuItem}>Analysis</button>
-            <button type="button" onClick={() => handleMobileNavSelect('budget')} style={appStyles.mobileMenuItem}>Budget</button>
-            {session && (
-              <button type="button" onClick={() => { setMobileMainMenuOpen(false); supabase.auth.signOut(); }} style={appStyles.mobileMenuItem}>Logout</button>
-            )}
-            <div style={appStyles.mobileSubsection}>
-              <button type="button" onClick={() => { setMobileAnalysisMenuOpen(true); setMobileMainMenuOpen(false); }} style={appStyles.mobileMenuItem}>Analysis options</button>
-              <button type="button" onClick={() => { setMobileCategoryOpen(true); setMobileMainMenuOpen(false); }} style={appStyles.mobileMenuItem}>Categories</button>
+          <div style={{ ...appStyles.mobileDrawerBackdrop, zIndex: 103 }} onClick={() => setMobileMainMenuOpen(false)} />
+          <div style={{ ...appStyles.mobileDrawer, ...appStyles.mobileDrawerOpen, zIndex: 104 }}>
+            <div style={{ padding: '8px 12px 0', marginBottom: '12px' }}>
+              <div style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingTop: '10px', paddingBottom: '12px', color: '#8a93a8', fontSize: '10px', fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+                Menu
+              </div>
             </div>
-          </div>
-        </>
-      )}
-      {isMobile && mobileAnalysisMenuOpen && (
-        <>
-          <div style={appStyles.mobileDrawerBackdrop} onClick={() => setMobileAnalysisMenuOpen(false)} />
-          <div style={{ ...appStyles.mobileAnalysisDrawer, ...appStyles.mobileDrawerOpen }}>
-            <button type="button" onClick={() => setMobileAnalysisMenuOpen(false)} style={appStyles.mobileDrawerCloseButton} aria-label="Close analysis menu">×</button>
-            <div style={appStyles.mobileNavTitle}>Analysis options</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginTop: '4px', width: '100%', boxSizing: 'border-box' }}>
               <button
-                onClick={() => setActiveFeatures(prev => ({ ...prev, forecast: !prev.forecast }))}
-                style={activeFeatures.forecast ? { ...appStyles.featureBtnActive, width: '100%', textAlign:'left' } : { ...appStyles.featureBtnInactive, width: '100%', textAlign:'left' }}
-              >Forecast</button>
+                type="button"
+                onClick={() => handleMobileNavSelect('explorer')}
+                style={getMobileMenuButtonStyle('explorer', view === 'explorer')}
+                onMouseEnter={() => setHoveredMobileMenuItem('explorer')}
+                onMouseLeave={() => setHoveredMobileMenuItem(null)}
+              >
+                Explorer
+              </button>
               <button
-                onClick={() => setActiveFeatures(prev => ({ ...prev, simulation: !prev.simulation }))}
-                style={activeFeatures.simulation ? { ...appStyles.featureBtnActive, width: '100%', textAlign:'left' } : { ...appStyles.featureBtnInactive, width: '100%', textAlign:'left' }}
-              >Simulation</button>
+                type="button"
+                onClick={() => handleMobileNavSelect('analysis')}
+                style={getMobileMenuButtonStyle('analysis', view === 'analysis')}
+                onMouseEnter={() => setHoveredMobileMenuItem('analysis')}
+                onMouseLeave={() => setHoveredMobileMenuItem(null)}
+              >
+                Analysis
+              </button>
               <button
-                onClick={() => setActiveFeatures(prev => ({ ...prev, heatmap: !prev.heatmap }))}
-                style={activeFeatures.heatmap ? { ...appStyles.featureBtnActive, width: '100%', textAlign:'left' } : { ...appStyles.featureBtnInactive, width: '100%', textAlign:'left' }}
-              >Heatmap</button>
-            </div>
-            <div style={{ marginTop: '20px' }}>
-              <div style={{ marginBottom: '10px', fontWeight: 600 }}>Date range</div>
-              <label htmlFor="mobile-start-date" style={{ display: 'block', marginBottom: '6px', fontSize: '14px' }}>From</label>
-              <input
-                id="mobile-start-date"
-                type="month"
-                value={selectedStartMonth === 'all' ? '' : selectedStartMonth}
-                onChange={e => updateAnalysisMonthFromDate(e.target.value, setSelectedStartMonth)}
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d0d4dd', marginBottom: '12px', fontSize: '14px' }}
-              />
-              <label htmlFor="mobile-end-date" style={{ display: 'block', marginBottom: '6px', fontSize: '14px' }}>To</label>
-              <input
-                id="mobile-end-date"
-                type="month"
-                value={selectedEndMonth === 'all' ? '' : selectedEndMonth}
-                onChange={e => updateAnalysisMonthFromDate(e.target.value, setSelectedEndMonth)}
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d0d4dd', fontSize: '14px' }}
-              />
+                type="button"
+                onClick={() => handleMobileNavSelect('budget')}
+                style={getMobileMenuButtonStyle('budget', view === 'budget')}
+                onMouseEnter={() => setHoveredMobileMenuItem('budget')}
+                onMouseLeave={() => setHoveredMobileMenuItem(null)}
+              >
+                Budget
+              </button>
+              {session && (
+                <button
+                  type="button"
+                  onClick={() => { setMobileMainMenuOpen(false); supabase.auth.signOut(); }}
+                  style={{
+                    ...getMobileMenuButtonStyle('logout', false),
+                    background: 'linear-gradient(135deg, #ff3b30 0%, #d11b1b 100%)',
+                    border: 'none',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    boxShadow: 'none',
+                    borderRadius: '0',
+                    width: '100%',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  Logout
+                </button>
+              )}
             </div>
           </div>
         </>
       )}
       {view === 'analysis' && (
-        <div style={{...appStyles.submenu, display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-          <div style={{ display: 'flex', gap: '0' }}>
+        <div style={{...appStyles.submenu, display: 'flex', flexDirection: 'column', gap: '8px', height: 'auto', alignItems: 'stretch', position: 'relative', zIndex: 101}}>
+          <div style={{ display: 'flex', gap: '0', flexWrap: 'wrap' }}>
             <button
               onClick={() => setActiveFeatures(prev => ({ ...prev, forecast: !prev.forecast }))}
               style={activeFeatures.forecast ? appStyles.featureBtnActive : appStyles.featureBtnInactive}
@@ -730,218 +869,221 @@ function App() {
               }}
             >Heatmap</button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <label htmlFor="start-date" style={{ color: '#000', fontWeight: '500', whiteSpace: 'nowrap', fontSize: '12px' }}>From:</label>
-              <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
-                <input
-                  id="start-date"
-                  type="text"
-                  lang="en-GB"
-                  value={selectedStartMonth === 'all' ? '' : selectedStartMonth + '-01'}
-                  onChange={e => {
-                    updateAnalysisMonthFromDate(e.target.value, setSelectedStartMonth);
-                  }}
-                  style={{
-                    padding: '4px 6px',
-                    borderRadius: '4px',
-                    border: '1px solid #bdc3c7',
-                    backgroundColor: '#fff',
-                    color: '#000',
-                    fontSize: '12px',
-                    fontWeight: '500',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    minWidth: '120px'
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    const dateInput = document.getElementById('start-date');
-                    if (!dateInput) return;
-                    if (dateInput && dateInput._flatpickr) {
-                      dateInput._flatpickr.open();
-                    } else if (typeof flatpickr === 'function') {
-                      try {
-                        const opts = {
-                          altInput: true,
-                          altFormat: 'd/m/Y',
-                          dateFormat: 'Y-m-d',
-                          allowInput: true,
-                          altInputClass: 'analysis-flatpickr-input'
-                        };
-                        const fp = flatpickr(dateInput, { ...opts, defaultDate: dateInput.value || null });
-                        fp.open();
-                      } catch (e) {
-                        if (dateInput && dateInput.showPicker) dateInput.showPicker();
-                        else dateInput.click();
-                      }
-                    } else if (dateInput && dateInput.showPicker) {
-                      dateInput.showPicker();
-                    } else {
-                      dateInput.click();
-                    }
-                  }}
-                  style={{
-                    position: 'absolute',
-                    right: '4px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: '2px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    outline: 'none'
-                  }}
-                  title="Open calendar"
-                >
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="1" y="3" width="14" height="12" rx="1" stroke="#000" strokeWidth="1.5"/>
-                    <line x1="1" y1="5" x2="15" y2="5" stroke="#000" strokeWidth="1.5"/>
-                    <line x1="5" y1="1" x2="5" y2="4" stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
-                    <line x1="11" y1="1" x2="11" y2="4" stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                </button>
-                {selectedStartMonth !== oldestMonth && selectedStartMonth !== 'all' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '170px' }}>
+                <label htmlFor="start-date" style={{ color: '#000', fontWeight: '500', whiteSpace: 'nowrap', fontSize: '12px' }}>From:</label>
+                <div style={{ display: 'flex', alignItems: 'center', position: 'relative', flex: 1, minWidth: '120px' }}>
+                  <input
+                    id="start-date"
+                    type="text"
+                    lang="en-GB"
+                    value={selectedStartMonth === 'all' ? '' : selectedStartMonth + '-01'}
+                    onChange={e => {
+                      updateAnalysisMonthFromDate(e.target.value, setSelectedStartMonth);
+                    }}
+                    style={{
+                      padding: '4px 6px 4px 34px',
+                      borderRadius: '4px',
+                      border: '1px solid #bdc3c7',
+                      backgroundColor: '#fff',
+                      color: '#000',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      minWidth: '120px'
+                    }}
+                  />
                   <button
                     type="button"
-                    onClick={() => setSelectedStartMonth(oldestMonth || 'all')}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const dateInput = document.getElementById('start-date');
+                      if (!dateInput) return;
+                      if (dateInput && dateInput._flatpickr) {
+                        dateInput._flatpickr.open();
+                      } else if (typeof flatpickr === 'function') {
+                        try {
+                          const opts = {
+                            altInput: true,
+                            altFormat: 'd/m/Y',
+                            dateFormat: 'Y-m-d',
+                            allowInput: true,
+                            altInputClass: 'analysis-flatpickr-input'
+                          };
+                          const fp = flatpickr(dateInput, { ...opts, defaultDate: dateInput.value || null });
+                          fp.open();
+                        } catch (e) {
+                          if (dateInput && dateInput.showPicker) dateInput.showPicker();
+                          else dateInput.click();
+                        }
+                      } else if (dateInput && dateInput.showPicker) {
+                        dateInput.showPicker();
+                      } else {
+                        dateInput.click();
+                      }
+                    }}
                     style={{
                       position: 'absolute',
-                      right: '4px',
-                      top: '8px',
+                      left: '4px',
+                      right: 'auto',
                       background: 'none',
                       border: 'none',
                       cursor: 'pointer',
-                      color: '#95a5a6',
-                      padding: '0px 1px',
-                      transition: 'color 0.2s ease',
-                      outline: 'none',
-                      lineHeight: '1',
-                      fontSize: '14px',
-                      fontWeight: 'bold'
+                      padding: '2px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      outline: 'none'
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.color = '#7f8c8d'}
-                    onMouseLeave={(e) => e.currentTarget.style.color = '#95a5a6'}
-                    onMouseDown={(e) => e.currentTarget.style.outline = 'none'}
-                    title="Clear date"
+                    title="Open calendar"
                   >
-                    <svg width="10" height="10" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-                      <line x1="13" y1="1" x2="1" y2="13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="1" y="3" width="14" height="12" rx="1" stroke="#000" strokeWidth="1.5"/>
+                      <line x1="1" y1="5" x2="15" y2="5" stroke="#000" strokeWidth="1.5"/>
+                      <line x1="5" y1="1" x2="5" y2="4" stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
+                      <line x1="11" y1="1" x2="11" y2="4" stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
                     </svg>
                   </button>
-                )}
+                  {selectedStartMonth !== oldestMonth && selectedStartMonth !== 'all' && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStartMonth(oldestMonth || 'all')}
+                      style={{
+                        position: 'absolute',
+                        right: '4px',
+                        top: '8px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#95a5a6',
+                        padding: '0px 1px',
+                        transition: 'color 0.2s ease',
+                        outline: 'none',
+                        lineHeight: '1',
+                        fontSize: '14px',
+                        fontWeight: 'bold'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = '#7f8c8d'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = '#95a5a6'}
+                      onMouseDown={(e) => e.currentTarget.style.outline = 'none'}
+                      title="Clear date"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                        <line x1="13" y1="1" x2="1" y2="13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-            
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <label htmlFor="end-date" style={{ color: '#000', fontWeight: '500', whiteSpace: 'nowrap', fontSize: '12px' }}>To:</label>
-              <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
-                <input
-                  id="end-date"
-                  type="text"
-                  lang="en-GB"
-                  value={selectedEndMonth === 'all' ? '' : selectedEndMonth + '-01'}
-                  onChange={e => {
-                    updateAnalysisMonthFromDate(e.target.value, setSelectedEndMonth);
-                  }}
-                  style={{
-                    padding: '4px 6px',
-                    borderRadius: '4px',
-                    border: '1px solid #bdc3c7',
-                    backgroundColor: '#fff',
-                    color: '#000',
-                    fontSize: '12px',
-                    fontWeight: '500',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    minWidth: '120px'
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    const dateInput = document.getElementById('end-date');
-                    if (!dateInput) return;
-                    if (dateInput && dateInput._flatpickr) {
-                      dateInput._flatpickr.open();
-                    } else if (typeof flatpickr === 'function') {
-                      try {
-                        const opts = {
-                          altInput: true,
-                          altFormat: 'd/m/Y',
-                          dateFormat: 'Y-m-d',
-                          allowInput: true,
-                          altInputClass: 'analysis-flatpickr-input'
-                        };
-                        const fp = flatpickr(dateInput, { ...opts, defaultDate: dateInput.value || null });
-                        fp.open();
-                      } catch (e) {
-                        if (dateInput && dateInput.showPicker) dateInput.showPicker();
-                        else dateInput.click();
-                      }
-                    } else if (dateInput && dateInput.showPicker) {
-                      dateInput.showPicker();
-                    } else {
-                      dateInput.click();
-                    }
-                  }}
-                  style={{
-                    position: 'absolute',
-                    right: '4px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: '2px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    outline: 'none'
-                  }}
-                  title="Open calendar"
-                >
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="1" y="3" width="14" height="12" rx="1" stroke="#000" strokeWidth="1.5"/>
-                    <line x1="1" y1="5" x2="15" y2="5" stroke="#000" strokeWidth="1.5"/>
-                    <line x1="5" y1="1" x2="5" y2="4" stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
-                    <line x1="11" y1="1" x2="11" y2="4" stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                </button>
-                {selectedEndMonth !== newestMonth && selectedEndMonth !== 'all' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '170px' }}>
+                <label htmlFor="end-date" style={{ color: '#000', fontWeight: '500', whiteSpace: 'nowrap', fontSize: '12px' }}>To:</label>
+                <div style={{ display: 'flex', alignItems: 'center', position: 'relative', flex: 1, minWidth: '120px' }}>
+                  <input
+                    id="end-date"
+                    type="text"
+                    lang="en-GB"
+                    value={selectedEndMonth === 'all' ? '' : selectedEndMonth + '-01'}
+                    onChange={e => {
+                      updateAnalysisMonthFromDate(e.target.value, setSelectedEndMonth);
+                    }}
+                    style={{
+                      padding: '4px 6px 4px 34px',
+                      borderRadius: '4px',
+                      border: '1px solid #bdc3c7',
+                      backgroundColor: '#fff',
+                      color: '#000',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      minWidth: '120px'
+                    }}
+                  />
                   <button
                     type="button"
-                    onClick={() => setSelectedEndMonth(newestMonth || todayMonth)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const dateInput = document.getElementById('end-date');
+                      if (!dateInput) return;
+                      if (dateInput && dateInput._flatpickr) {
+                        dateInput._flatpickr.open();
+                      } else if (typeof flatpickr === 'function') {
+                        try {
+                          const opts = {
+                            altInput: true,
+                            altFormat: 'd/m/Y',
+                            dateFormat: 'Y-m-d',
+                            allowInput: true,
+                            altInputClass: 'analysis-flatpickr-input'
+                          };
+                          const fp = flatpickr(dateInput, { ...opts, defaultDate: dateInput.value || null });
+                          fp.open();
+                        } catch (e) {
+                          if (dateInput && dateInput.showPicker) dateInput.showPicker();
+                          else dateInput.click();
+                        }
+                      } else if (dateInput && dateInput.showPicker) {
+                        dateInput.showPicker();
+                      } else {
+                        dateInput.click();
+                      }
+                    }}
                     style={{
                       position: 'absolute',
-                      right: '4px',
-                      top: '8px',
+                      left: '4px',
+                      right: 'auto',
                       background: 'none',
                       border: 'none',
                       cursor: 'pointer',
-                      color: '#95a5a6',
-                      padding: '0px 1px',
-                      transition: 'color 0.2s ease',
-                      outline: 'none',
-                      lineHeight: '1',
-                      fontSize: '14px',
-                      fontWeight: 'bold'
+                      padding: '2px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      outline: 'none'
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.color = '#7f8c8d'}
-                    onMouseLeave={(e) => e.currentTarget.style.color = '#95a5a6'}
-                    onMouseDown={(e) => e.currentTarget.style.outline = 'none'}
-                    title="Clear date"
+                    title="Open calendar"
                   >
-                    <svg width="10" height="10" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-                      <line x1="13" y1="1" x2="1" y2="13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="1" y="3" width="14" height="12" rx="1" stroke="#000" strokeWidth="1.5"/>
+                      <line x1="1" y1="5" x2="15" y2="5" stroke="#000" strokeWidth="1.5"/>
+                      <line x1="5" y1="1" x2="5" y2="4" stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
+                      <line x1="11" y1="1" x2="11" y2="4" stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
                     </svg>
                   </button>
-                )}
+                  {selectedEndMonth !== newestMonth && selectedEndMonth !== 'all' && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEndMonth(newestMonth || todayMonth)}
+                      style={{
+                        position: 'absolute',
+                        right: '4px',
+                        top: '8px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#95a5a6',
+                        padding: '0px 1px',
+                        transition: 'color 0.2s ease',
+                        outline: 'none',
+                        lineHeight: '1',
+                        fontSize: '14px',
+                        fontWeight: 'bold'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = '#7f8c8d'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = '#95a5a6'}
+                      onMouseDown={(e) => e.currentTarget.style.outline = 'none'}
+                      title="Clear date"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                        <line x1="13" y1="1" x2="1" y2="13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -949,7 +1091,13 @@ function App() {
       )}
       <div style={appStyles.mainContent}>
         {view === 'explorer' && (
-          <CategoryExplorer selectedCategoryId={selectedCategory} onCategorySelect={setSelectedCategory} isMobile={isMobile} />
+          <CategoryExplorer
+            selectedCategoryId={selectedCategory}
+            onCategorySelect={setSelectedCategory}
+            isMobile={isMobile}
+            openCategoryManager={mobileOpenCategoryManager}
+            onCategoryManagerHandled={() => setMobileOpenCategoryManager(false)}
+          />
         )}
 
         {view === 'budget' && (
@@ -957,7 +1105,17 @@ function App() {
         )}
 
         {view === 'analysis' && (
-          <Analysis activeFeatures={activeFeatures} setActiveFeatures={setActiveFeatures} selectedStartMonth={selectedStartMonth} selectedEndMonth={selectedEndMonth} fetchTransactions={fetchTransactions} handleBudgetsChanged={handleAnalysisBudgetsChanged} />
+          <Analysis
+            activeFeatures={activeFeatures}
+            setActiveFeatures={setActiveFeatures}
+            selectedStartMonth={selectedStartMonth}
+            selectedEndMonth={selectedEndMonth}
+            fetchTransactions={fetchTransactions}
+            handleBudgetsChanged={handleAnalysisBudgetsChanged}
+            isMobile={isMobile}
+            mobileBudgetSidebarOpen={mobileAnalysisBudgetOpen}
+            onMobileBudgetSidebarToggle={setMobileAnalysisBudgetOpen}
+          />
         )}
       </div>
     </div>

@@ -34,6 +34,13 @@ export default function BudgetPage() {
   const [formData, setFormData] = useState(getInitialFormData());
   const [hoveredBtn, setHoveredBtn] = useState(null);
   const [error, setError] = useState('');
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const getUser = async () => {
@@ -154,12 +161,18 @@ export default function BudgetPage() {
 
   return (
     <div style={styles.container}>
-      <div style={styles.header}>
+      <div style={{
+        ...styles.header,
+        flexDirection: isMobile ? 'column' : 'row',
+        alignItems: isMobile ? 'flex-start' : 'center',
+        gap: isMobile ? '10px' : 0,
+      }}>
         <h2 style={styles.title}>Budget Management</h2>
         <button
           onClick={handleToggleForm}
           style={{
             ...styles.addButton,
+            ...(isMobile ? { alignSelf: 'flex-start' } : {}),
             ...(hoveredBtn === 'addBudget' && { 
               backgroundColor: '#2980b9',
               transform: 'translateY(-2px)',
