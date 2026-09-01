@@ -185,3 +185,28 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
     height: 0;
   }
 }
+
+@media (max-width: 768px) {
+  [style*="navbar"] {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 50 !important;
+    width: 100% !important;
+  }
+
+  [style*="submenu"] {
+    position: fixed !important;
+    top: 64px !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 49 !important;
+    width: 100% !important;
+  }
+
+  [style*="mainContent"] {
+    margin-top: 64px !important;
+    padding-top: 0 !important;
+  }
+}
