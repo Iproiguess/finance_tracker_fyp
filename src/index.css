@@ -2,9 +2,11 @@
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: light;
-  color: #213547;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
   background-color: #f5f5f5;
+
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -17,23 +19,22 @@
   box-sizing: border-box;
 }
 
-html,
-body,
-#root {
+html {
+  height: 100%;
   width: 100%;
-  min-height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow-x: hidden;
 }
 
 body {
-  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
   background-color: #f5f5f5;
 }
 
 #root {
-  min-height: 100vh;
+  width: 100%;
+  height: 100%;
 }
 
 h1 {
@@ -117,14 +118,6 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
   pointer-events: none !important;
 }
 
-/* Remove the native focus outline from Recharts SVG chart elements */
-.recharts-wrapper svg:focus,
-.recharts-responsive-container svg:focus,
-.recharts-wrapper svg:focus-visible,
-.recharts-responsive-container svg:focus-visible {
-  outline: none !important;
-}
-
 /* Slightly smaller on Budget card where inputs are narrower */
 .budget-card .flatpickr-input.flatpickr-alt-input { width: 80px; right: 36px; }
 
@@ -157,7 +150,7 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
   box-shadow: none !important;
   outline: none !important;
   width: 120px !important;
-  padding: 5px 12px 5px 34px !important;
+  padding: 5px 12px 5px 8px !important;
   font-size: 12px !important;
   font-weight: 500 !important;
   border-radius: 4px !important;
@@ -165,7 +158,8 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
 }
 
 /* Ensure any flatpickr-created alt input always uses the scoped class if present */
-.flatpickr-input.flatpickr-alt-input.budget-flatpickr-input {
+.flatpickr-input.flatpickr-alt-input.analysis-flatpickr-input,
+.flatpickr-input.flatpickr-alt-input.budget-flatpickr-budget {
   background: #fff !important;
   color: #000 !important;
   border: 1px solid #ccc !important;
@@ -184,29 +178,25 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
     width: 0;
     height: 0;
   }
-}
 
-@media (max-width: 768px) {
-  [style*="navbar"] {
-    position: fixed !important;
+  /* Extend mobile sidebars to full viewport height but behind navbar */
+  [style*="mobileDrawerOpen"],
+  [style*="mobileCategoryDrawer"],
+  [style*="mobileAnalysisDrawer"],
+  [style*="sidebarDrawer"] {
     top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    z-index: 50 !important;
-    width: 100% !important;
+    height: 100vh !important;
+    z-index: 100 !important;
   }
 
-  [style*="submenu"] {
-    position: fixed !important;
-    top: 64px !important;
-    left: 0 !important;
-    right: 0 !important;
-    z-index: 49 !important;
-    width: 100% !important;
+  /* Keep navbar on top of sidebars */
+  [style*="navbar"] {
+    z-index: 101 !important;
   }
 
-  [style*="mainContent"] {
-    margin-top: 64px !important;
-    padding-top: 0 !important;
+  /* Keep backdrops just below sidebars */
+  [style*="Backdrop"],
+  [style*="backdrop"] {
+    z-index: 99 !important;
   }
 }
