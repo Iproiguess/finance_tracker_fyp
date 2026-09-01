@@ -159,44 +159,10 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
 
 /* Ensure any flatpickr-created alt input always uses the scoped class if present */
 .flatpickr-input.flatpickr-alt-input.analysis-flatpickr-input,
-.flatpickr-input.flatpickr-alt-input.budget-flatpickr-budget {
+.flatpickr-input.flatpickr-alt-input.budget-flatpickr-input {
   background: #fff !important;
   color: #000 !important;
   border: 1px solid #ccc !important;
   box-shadow: none !important;
   padding: 5px 12px 5px 8px !important;
-}
-
-@media (max-width: 768px) {
-  * {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  *::-webkit-scrollbar {
-    display: none;
-    width: 0;
-    height: 0;
-  }
-
-  /* Extend mobile sidebars to full viewport height but behind navbar */
-  [style*="mobileDrawerOpen"],
-  [style*="mobileCategoryDrawer"],
-  [style*="mobileAnalysisDrawer"],
-  [style*="sidebarDrawer"] {
-    top: 0 !important;
-    height: 100vh !important;
-    z-index: 100 !important;
-  }
-
-  /* Keep navbar on top of sidebars */
-  [style*="navbar"] {
-    z-index: 101 !important;
-  }
-
-  /* Keep backdrops just below sidebars */
-  [style*="Backdrop"],
-  [style*="backdrop"] {
-    z-index: 99 !important;
-  }
 }

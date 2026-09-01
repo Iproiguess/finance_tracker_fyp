@@ -59,6 +59,9 @@ export const appStyles = {
     justifyContent: 'space-between',
     width: '100%',
     boxSizing: 'border-box',
+    position: 'sticky',
+    top: 0,
+    zIndex: 1000,
   },
   submenu: {
       backgroundColor: '#ecf1f8',
