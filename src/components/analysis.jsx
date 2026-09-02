@@ -144,7 +144,7 @@ export function Analysis({ activeFeatures = { forecast: false, simulation: false
       borderLeft: 'none',
       borderRight: '1px solid rgba(255,255,255,0.08)',
       boxShadow: '8px 0 24px rgba(0,0,0,0.22)',
-      zIndex: mobileBudgetSidebarOpen ? 102 : 90,
+      zIndex: mobileBudgetSidebarOpen ? 1101 : 90,
       padding: '8px 14px 16px'
     } : styles.sidebar}>
       <div style={isMobileView ? { ...styles.sidebarHeader, marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)' } : styles.sidebarHeader}>
@@ -165,7 +165,7 @@ export function Analysis({ activeFeatures = { forecast: false, simulation: false
     <div style={styles.container}>
       {isMobileView && mobileBudgetSidebarOpen && (
         <>
-          <div style={{ ...styles.sidebarDrawerBackdrop, zIndex: 101 }} onClick={() => onMobileBudgetSidebarToggle(false)} />
+          <div style={{ ...styles.sidebarDrawerBackdrop, zIndex: 1100 }} onClick={() => onMobileBudgetSidebarToggle(false)} />
           {renderBudgetSidebar()}
         </>
       )}
