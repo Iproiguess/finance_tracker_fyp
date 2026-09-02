@@ -28,6 +28,7 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [cameraLoading, setCameraLoading] = useState(false);
+  const [videoStateDebug, setVideoStateDebug] = useState({});
   const videoRef = useRef(null);
   const cameraContainerRef = useRef(null);
   const cameraStreamRef = useRef(null);
@@ -50,6 +51,7 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
       videoRef.current.pause();
       console.log('Video element paused and srcObject cleared');
     }
+    setVideoStateDebug({});
     setCameraActive(false);
     console.log('Camera closed - cameraActive set to false');
   };
@@ -74,11 +76,31 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
 
     const video = videoRef.current;
     const interval = setInterval(() => {
-      console.log(`[Video Monitor] paused=${video.paused}, readyState=${video.readyState}, networkState=${video.networkState}, dimensions=${video.videoWidth}x${video.videoHeight}, duration=${video.duration}`);
-    }, 1000);
+      const state = {
+        paused: video.paused,
+        readyState: video.readyState,
+        networkState: video.networkState,
+        width: video.videoWidth,
+        height: video.videoHeight,
+        duration: video.duration
+      };
+      console.log(`[Video Monitor] paused=${state.paused}, readyState=${state.readyState}, networkState=${state.networkState}, dimensions=${state.width}x${state.height}, duration=${state.duration}`);
+      setVideoStateDebug(state);
+    }, 500);
 
     return () => clearInterval(interval);
   }, [cameraActive]);
+
+  const handleCameraButtonClick = () => {
+    console.log('Camera button clicked, cameraActive:', cameraActive);
+    if (cameraActive) {
+      console.log('Calling stopCamera because cameraActive is true');
+      stopCamera();
+    } else {
+      console.log('Calling openCamera because cameraActive is false');
+      openCamera();
+    }
+  };
 
   const submitTransaction = async (payload = formData) => {
     // Reuse the same submission path for both manual entry and parsed receipt data.
@@ -249,16 +271,24 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
         
         console.log('Stream assigned to video element');
         
-        // Wait for video to be canplay state
+        // Wait for video metadata and playable state
         await new Promise((resolve, reject) => {
           let resolved = false;
           
           const onCanPlay = () => {
             if (!resolved) {
               resolved = true;
-              console.log('Video canplay event fired');
-              videoRef.current?.removeEventListener('canplay', onCanPlay);
-              videoRef.current?.removeEventListener('error', onError);
+              console.log(`Video canplay event fired, dimensions: ${videoRef.current?.videoWidth}x${videoRef.current?.videoHeight}`);
+              cleanup();
+              resolve();
+            }
+          };
+          
+          const onLoadedMetadata = () => {
+            if (!resolved) {
+              resolved = true;
+              console.log(`Video loadedmetadata event fired, dimensions: ${videoRef.current?.videoWidth}x${videoRef.current?.videoHeight}`);
+              cleanup();
               resolve();
             }
           };
@@ -267,13 +297,19 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
             if (!resolved) {
               resolved = true;
               console.error('Video element error:', e);
-              videoRef.current?.removeEventListener('canplay', onCanPlay);
-              videoRef.current?.removeEventListener('error', onError);
+              cleanup();
               reject(new Error('Video element error: ' + e.message));
             }
           };
           
+          const cleanup = () => {
+            videoRef.current?.removeEventListener('canplay', onCanPlay);
+            videoRef.current?.removeEventListener('loadedmetadata', onLoadedMetadata);
+            videoRef.current?.removeEventListener('error', onError);
+          };
+          
           videoRef.current.addEventListener('canplay', onCanPlay);
+          videoRef.current.addEventListener('loadedmetadata', onLoadedMetadata);
           videoRef.current.addEventListener('error', onError);
           
           // Timeout after 5 seconds
@@ -468,7 +504,7 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
                 </label>
                 <button
                   type="button"
-                  onClick={cameraActive ? stopCamera : openCamera}
+                  onClick={handleCameraButtonClick}
                   disabled={cameraLoading || receiptProcessing}
                   style={styles.scanButton}
                 >
@@ -480,9 +516,9 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
                 <div ref={cameraContainerRef} style={styles.cameraContainer}>
                   <div style={{ fontSize: '10px', color: '#ccc', padding: '4px', backgroundColor: '#333', borderRadius: '4px', marginBottom: '4px', fontFamily: 'monospace', maxHeight: '60px', overflow: 'auto' }}>
                     <div>Video State Debug:</div>
-                    <div>Paused: {videoRef.current?.paused ? 'YES' : 'NO'}</div>
-                    <div>ReadyState: {videoRef.current?.readyState}</div>
-                    <div>Dimensions: {videoRef.current?.videoWidth}x{videoRef.current?.videoHeight}</div>
+                    <div>Paused: {videoStateDebug.paused ? 'YES' : 'NO'}</div>
+                    <div>ReadyState: {videoStateDebug.readyState}</div>
+                    <div>Dimensions: {videoStateDebug.width}x{videoStateDebug.height}</div>
                   </div>
                   <video
                     ref={videoRef}
