@@ -765,8 +765,8 @@ function App() {
       )}
       {isMobile && mobileMainMenuOpen && (
         <>
-          <div style={{ ...appStyles.mobileDrawerBackdrop, zIndex: 103 }} onClick={() => setMobileMainMenuOpen(false)} />
-          <div style={{ ...appStyles.mobileDrawer, ...appStyles.mobileDrawerOpen, zIndex: 104 }}>
+          <div style={{ ...appStyles.mobileDrawerBackdrop, zIndex: 1099 }} onClick={() => setMobileMainMenuOpen(false)} />
+          <div style={{ ...appStyles.mobileDrawer, ...appStyles.mobileDrawerOpen, zIndex: 1100 }}>
             <div style={{ padding: '8px 12px 0', marginBottom: '12px' }}>
               <div style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingTop: '10px', paddingBottom: '12px', color: '#8a93a8', fontSize: '10px', fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase' }}>
                 Menu

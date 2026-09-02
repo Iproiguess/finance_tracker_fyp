@@ -79,7 +79,7 @@ export const styles = {
     position: 'fixed',
     inset: 0,
     backgroundColor: 'rgba(13, 18, 36, 0.45)',
-    zIndex: 99
+    zIndex: 1099
   },
 
   sidebarDrawer: {
@@ -96,7 +96,7 @@ export const styles = {
     display: 'flex',
     flexDirection: 'column',
     color: '#fff',
-    zIndex: 100,
+    zIndex: 1100,
     transform: 'translateX(-100%)',
     transition: 'transform 220ms ease-in-out'
   },
