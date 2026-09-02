@@ -264,13 +264,13 @@ export const styles = {
   // Main analysis content
   mainContent: {
     flex: 1,
-    padding: '20px',
-    overflowY: 'auto',
+    padding: '0 20px 20px 20px',
+    overflowY: 'hidden',
     backgroundColor: '#f5f5f5'
   },
 
   pageTitle: {
-    margin: '0 0 14px 0',
+    margin: '0',
     color: '#2c3e50'
   },
 

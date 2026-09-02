@@ -230,8 +230,8 @@ export function Analysis({ activeFeatures = { forecast: false, simulation: false
 
         {/* ALWAYS SHOW: Full Stats/Analysis Page */}
         <>
-          <div style={{ marginBottom: '20px' }}>
-            <h2 style={styles.pageTitle}>Finance Analysis {selectedBudgetIds.size > 0 && `(${selectedBudgetIds.size} budget${selectedBudgetIds.size !== 1 ? 's' : ''})`}</h2>
+          <div style={{ margin: '0', padding: '0', lineHeight: 1.2 }}>
+            <h2 style={{ ...styles.pageTitle, margin: 0, lineHeight: 1.2 }}>Finance Analysis {selectedBudgetIds.size > 0 && `(${selectedBudgetIds.size} budget${selectedBudgetIds.size !== 1 ? 's' : ''})`}</h2>
           </div>
           
           {monthlyTrendData.length > 0 && (

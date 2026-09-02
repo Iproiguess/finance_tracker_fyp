@@ -500,7 +500,7 @@ function App() {
 
   return (
     <div style={appStyles.appContainer}>
-      <div style={appStyles.navbar}>
+      <div style={isMobile ? { ...appStyles.navbar, position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000 } : appStyles.navbar}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {isMobile && view === 'explorer' && (
             <button
@@ -824,7 +824,7 @@ function App() {
         </>
       )}
       {view === 'analysis' && (
-        <div style={{...appStyles.submenu, display: 'flex', flexDirection: 'column', gap: '8px', height: 'auto', alignItems: 'stretch', position: 'relative', zIndex: 101}}>
+        <div style={{...appStyles.submenu, display: 'flex', flexDirection: 'column', gap: '0px', height: 'auto', alignItems: 'stretch', position: 'relative', zIndex: 101, ...(isMobile && { marginTop: '64px' })}}>
           <div style={{ display: 'flex', gap: '0', flexWrap: 'wrap' }}>
             <button
               onClick={() => setActiveFeatures(prev => ({ ...prev, forecast: !prev.forecast }))}
@@ -869,8 +869,8 @@ function App() {
               }}
             >Heatmap</button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', marginBottom: '0px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flexWrap: 'wrap', paddingLeft: '20px', paddingTop: '0px', paddingBottom: '0px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '170px' }}>
                 <label htmlFor="start-date" style={{ color: '#000', fontWeight: '500', whiteSpace: 'nowrap', fontSize: '12px' }}>From:</label>
                 <div style={{ display: 'flex', alignItems: 'center', position: 'relative', flex: 1, minWidth: '120px' }}>
@@ -883,7 +883,7 @@ function App() {
                       updateAnalysisMonthFromDate(e.target.value, setSelectedStartMonth);
                     }}
                     style={{
-                      padding: '4px 6px 4px 34px',
+                      padding: '4px 26px 4px 30px',
                       borderRadius: '4px',
                       border: '1px solid #bdc3c7',
                       backgroundColor: '#fff',
@@ -990,7 +990,7 @@ function App() {
                       updateAnalysisMonthFromDate(e.target.value, setSelectedEndMonth);
                     }}
                     style={{
-                      padding: '4px 6px 4px 34px',
+                      padding: '4px 26px 4px 30px',
                       borderRadius: '4px',
                       border: '1px solid #bdc3c7',
                       backgroundColor: '#fff',
@@ -1089,7 +1089,7 @@ function App() {
           </div>
         </div>
       )}
-      <div style={appStyles.mainContent}>
+      <div style={isMobile ? { ...appStyles.mainContent, marginTop: view === 'analysis' ? '8px' : '64px' } : appStyles.mainContent}>
         {view === 'explorer' && (
           <CategoryExplorer
             selectedCategoryId={selectedCategory}
