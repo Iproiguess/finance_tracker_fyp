@@ -35,25 +35,44 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   const workerRef = useRef(null);
 
   const stopCamera = () => {
-    console.log('stopCamera called - closing camera...');
+    console.log('====== stopCamera CALLED ======');
+    console.log('1. Check stream:', !!cameraStreamRef.current);
+    
     if (cameraStreamRef.current) {
+      console.log('2. Getting tracks from stream...');
       const tracks = cameraStreamRef.current.getTracks();
-      console.log(`Stopping ${tracks.length} tracks`);
+      console.log('3. Found', tracks.length, 'tracks');
+      
       tracks.forEach((track, index) => {
-        console.log(`Stopping track ${index}:`, track.kind, track.readyState);
+        console.log(`   Track ${index}: kind=${track.kind}, readyState=${track.readyState}`);
+        console.log(`   Stopping track ${index}...`);
         track.stop();
         track.enabled = false;
+        console.log(`   Track ${index} stopped`);
       });
+      
       cameraStreamRef.current = null;
+      console.log('4. cameraStreamRef set to null');
+    } else {
+      console.log('2. No stream to stop');
     }
+    
+    console.log('5. Check video element:', !!videoRef.current);
     if (videoRef.current) {
+      console.log('6. Clearing video srcObject and pausing...');
       videoRef.current.srcObject = null;
       videoRef.current.pause();
-      console.log('Video element paused and srcObject cleared');
+      console.log('7. Video element cleared and paused');
+    } else {
+      console.log('6. No video element to stop');
     }
+    
+    console.log('8. Resetting videoStateDebug');
     setVideoStateDebug({});
+    
+    console.log('9. Setting cameraActive to FALSE');
     setCameraActive(false);
-    console.log('Camera closed - cameraActive set to false');
+    console.log('====== stopCamera FINISHED ======');
   };
 
   // Clean up camera only when the form unmounts, not on every focus change.
@@ -92,12 +111,16 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   }, [cameraActive]);
 
   const handleCameraButtonClick = () => {
-    console.log('Camera button clicked, cameraActive:', cameraActive);
+    console.log('====== Camera button clicked ======');
+    console.log('Current cameraActive state:', cameraActive);
+    console.log('cameraStreamRef.current exists:', !!cameraStreamRef.current);
+    console.log('videoRef.current exists:', !!videoRef.current);
+    
     if (cameraActive) {
-      console.log('Calling stopCamera because cameraActive is true');
+      console.log('>>> CALLING stopCamera because cameraActive is TRUE');
       stopCamera();
     } else {
-      console.log('Calling openCamera because cameraActive is false');
+      console.log('>>> CALLING openCamera because cameraActive is FALSE');
       openCamera();
     }
   };
@@ -265,20 +288,50 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
       
       // Ensure video element is ready before assigning stream
       if (videoRef.current) {
-        // Set the srcObject first
-        videoRef.current.srcObject = stream;
-        videoRef.current.muted = true;
+        const video = videoRef.current;
         
+        // Set essential attributes BEFORE srcObject
+        video.autoplay = true;
+        video.muted = true;
+        video.playsInline = true;
+        video.playsinline = true;
+        
+        console.log('Video attributes set');
+        
+        // Assign stream
+        video.srcObject = stream;
         console.log('Stream assigned to video element');
         
-        // Wait for video metadata and playable state
+        // Force play immediately
+        try {
+          const playPromise = video.play();
+          console.log('play() called, returned:', playPromise);
+          
+          if (playPromise !== undefined) {
+            await playPromise;
+            console.log('play() promise resolved - video should be playing now');
+          }
+        } catch (playErr) {
+          console.error('play() threw error:', playErr);
+        }
+        
+        // Wait for loadstart event which fires immediately when stream starts
         await new Promise((resolve, reject) => {
           let resolved = false;
+          
+          const onLoadStart = () => {
+            if (!resolved) {
+              resolved = true;
+              console.log('loadstart event fired - stream is being processed');
+              cleanup();
+              resolve();
+            }
+          };
           
           const onCanPlay = () => {
             if (!resolved) {
               resolved = true;
-              console.log(`Video canplay event fired, dimensions: ${videoRef.current?.videoWidth}x${videoRef.current?.videoHeight}`);
+              console.log(`canplay event fired, dimensions: ${video.videoWidth}x${video.videoHeight}, paused: ${video.paused}`);
               cleanup();
               resolve();
             }
@@ -287,7 +340,7 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
           const onLoadedMetadata = () => {
             if (!resolved) {
               resolved = true;
-              console.log(`Video loadedmetadata event fired, dimensions: ${videoRef.current?.videoWidth}x${videoRef.current?.videoHeight}`);
+              console.log(`loadedmetadata event fired, dimensions: ${video.videoWidth}x${video.videoHeight}, paused: ${video.paused}`);
               cleanup();
               resolve();
             }
@@ -303,40 +356,30 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
           };
           
           const cleanup = () => {
-            videoRef.current?.removeEventListener('canplay', onCanPlay);
-            videoRef.current?.removeEventListener('loadedmetadata', onLoadedMetadata);
-            videoRef.current?.removeEventListener('error', onError);
+            video.removeEventListener('loadstart', onLoadStart);
+            video.removeEventListener('canplay', onCanPlay);
+            video.removeEventListener('loadedmetadata', onLoadedMetadata);
+            video.removeEventListener('error', onError);
           };
           
-          videoRef.current.addEventListener('canplay', onCanPlay);
-          videoRef.current.addEventListener('loadedmetadata', onLoadedMetadata);
-          videoRef.current.addEventListener('error', onError);
+          video.addEventListener('loadstart', onLoadStart);
+          video.addEventListener('canplay', onCanPlay);
+          video.addEventListener('loadedmetadata', onLoadedMetadata);
+          video.addEventListener('error', onError);
           
-          // Timeout after 5 seconds
+          // Timeout after 5 seconds - if nothing happens, just proceed
           setTimeout(() => {
             if (!resolved) {
               resolved = true;
-              console.warn('Video canplay timeout, proceeding anyway');
-              videoRef.current?.removeEventListener('canplay', onCanPlay);
-              videoRef.current?.removeEventListener('error', onError);
+              console.warn('Video events timeout, proceeding anyway - readyState:', video.readyState);
+              cleanup();
               resolve();
             }
           }, 5000);
         });
-        
-        // Force playback on mobile
-        try {
-          const playPromise = videoRef.current.play();
-          if (playPromise !== undefined) {
-            await playPromise;
-            console.log('Video playing');
-          }
-        } catch (err) {
-          console.warn('Video play failed:', err);
-        }
       }
       
-      console.log('Camera initialized successfully, setting cameraActive to true');
+      console.log('Camera initialized, setting cameraActive to true');
       setCameraActive(true);
       
       // Scroll into view after state updates
