@@ -34,9 +34,12 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   const workerRef = useRef(null);
 
   const stopCamera = () => {
-    console.log('stopCamera called');
+    console.log('stopCamera called - closing camera...');
     if (cameraStreamRef.current) {
-      cameraStreamRef.current.getTracks().forEach(track => {
+      const tracks = cameraStreamRef.current.getTracks();
+      console.log(`Stopping ${tracks.length} tracks`);
+      tracks.forEach((track, index) => {
+        console.log(`Stopping track ${index}:`, track.kind, track.readyState);
         track.stop();
         track.enabled = false;
       });
@@ -45,8 +48,10 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
       videoRef.current.pause();
+      console.log('Video element paused and srcObject cleared');
     }
     setCameraActive(false);
+    console.log('Camera closed - cameraActive set to false');
   };
 
   // Clean up camera only when the form unmounts, not on every focus change.
@@ -62,6 +67,18 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
       }
     };
   }, [receiptPreview]);
+
+  // Monitor video element state when camera is active
+  useEffect(() => {
+    if (!cameraActive || !videoRef.current) return;
+
+    const video = videoRef.current;
+    const interval = setInterval(() => {
+      console.log(`[Video Monitor] paused=${video.paused}, readyState=${video.readyState}, networkState=${video.networkState}, dimensions=${video.videoWidth}x${video.videoHeight}, duration=${video.duration}`);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [cameraActive]);
 
   const submitTransaction = async (payload = formData) => {
     // Reuse the same submission path for both manual entry and parsed receipt data.
@@ -213,6 +230,15 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
       }
       
       console.log('Stream obtained:', stream);
+      console.log('Stream video tracks:', stream.getVideoTracks().length);
+      console.log('Stream audio tracks:', stream.getAudioTracks().length);
+      
+      const videoTracks = stream.getVideoTracks();
+      if (videoTracks.length > 0) {
+        console.log('First video track settings:', videoTracks[0].getSettings());
+        console.log('First video track state:', videoTracks[0].readyState);
+      }
+      
       cameraStreamRef.current = stream;
       
       // Ensure video element is ready before assigning stream
@@ -366,9 +392,13 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
       setSelectedCandidate(parsed.selected || parsed.description || '');
       setReceiptMessage(`Receipt detected: ${parsed.description || 'Unknown merchant'} • ${parsed.amount ? `$${parsed.amount.toFixed(2)}` : 'amount pending'}`);
       setError('');
+      console.log('Photo captured and processed successfully, closing camera');
       stopCamera();
     } catch (err) {
+      console.error('Error processing receipt:', err);
       setReceiptMessage(err.message || 'Unable to read the receipt. Please try again.');
+      // Also close camera if OCR fails
+      stopCamera();
     } finally {
       setReceiptProcessing(false);
     }
@@ -448,6 +478,12 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
               {cameraError && <div style={styles.receiptStatusBox}>{cameraError}</div>}
               {cameraActive && (
                 <div ref={cameraContainerRef} style={styles.cameraContainer}>
+                  <div style={{ fontSize: '10px', color: '#ccc', padding: '4px', backgroundColor: '#333', borderRadius: '4px', marginBottom: '4px', fontFamily: 'monospace', maxHeight: '60px', overflow: 'auto' }}>
+                    <div>Video State Debug:</div>
+                    <div>Paused: {videoRef.current?.paused ? 'YES' : 'NO'}</div>
+                    <div>ReadyState: {videoRef.current?.readyState}</div>
+                    <div>Dimensions: {videoRef.current?.videoWidth}x{videoRef.current?.videoHeight}</div>
+                  </div>
                   <video
                     ref={videoRef}
                     autoPlay={true}
