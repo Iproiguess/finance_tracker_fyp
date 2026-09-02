@@ -901,6 +901,7 @@ function App() {
                       updateAnalysisMonthFromDate(e.target.value, setSelectedStartMonth);
                     }}
                     style={{
+                      display: 'none',
                       padding: '4px 26px 4px 30px',
                       borderRadius: '4px',
                       border: '1px solid #bdc3c7',
@@ -944,8 +945,10 @@ function App() {
                     }}
                     style={{
                       position: 'absolute',
-                      left: '4px',
+                      left: '6px',
                       right: 'auto',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
                       background: 'none',
                       border: 'none',
                       cursor: 'pointer',
@@ -953,7 +956,8 @@ function App() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      outline: 'none'
+                      outline: 'none',
+                      zIndex: 2
                     }}
                     title="Open calendar"
                   >
@@ -1008,6 +1012,7 @@ function App() {
                       updateAnalysisMonthFromDate(e.target.value, setSelectedEndMonth);
                     }}
                     style={{
+                      display: 'none',
                       padding: '4px 26px 4px 30px',
                       borderRadius: '4px',
                       border: '1px solid #bdc3c7',
@@ -1051,8 +1056,10 @@ function App() {
                     }}
                     style={{
                       position: 'absolute',
-                      left: '4px',
+                      left: '6px',
                       right: 'auto',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
                       background: 'none',
                       border: 'none',
                       cursor: 'pointer',
@@ -1060,7 +1067,8 @@ function App() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      outline: 'none'
+                      outline: 'none',
+                      zIndex: 2
                     }}
                     title="Open calendar"
                   >

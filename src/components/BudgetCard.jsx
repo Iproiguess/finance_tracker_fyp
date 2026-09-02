@@ -281,6 +281,7 @@ export default function BudgetCard({
                   }}
                   className="budget-flatpickr-input"
                   style={{
+                    display: 'none',
                     padding: '4px 6px',
                     borderRadius: '4px',
                     border: '1px solid #bdc3c7',
@@ -324,7 +325,10 @@ export default function BudgetCard({
                   }}
                   style={{
                     position: 'absolute',
-                    right: '4px',
+                    left: '6px',
+                    right: 'auto',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
@@ -332,7 +336,8 @@ export default function BudgetCard({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    outline: 'none'
+                    outline: 'none',
+                    zIndex: 2
                   }}
                   title="Open calendar"
                 >
@@ -359,6 +364,7 @@ export default function BudgetCard({
                   }}
                   className="budget-flatpickr-input"
                   style={{
+                    display: 'none',
                     padding: '4px 6px',
                     borderRadius: '4px',
                     border: '1px solid #bdc3c7',
@@ -402,7 +408,10 @@ export default function BudgetCard({
                   }}
                   style={{
                     position: 'absolute',
-                    right: '4px',
+                    left: '6px',
+                    right: 'auto',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',

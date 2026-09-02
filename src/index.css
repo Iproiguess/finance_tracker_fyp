@@ -122,6 +122,23 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
   pointer-events: none !important;
 }
 
+/* Aggressively hide the real date inputs on analysis and budget pages */
+#start-date,
+#end-date,
+#start-date:not(.flatpickr-alt-input),
+#end-date:not(.flatpickr-alt-input) {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  left: -9999px !important;
+}
+
 /* Slightly smaller on Budget card where inputs are narrower */
 .budget-card .flatpickr-input.flatpickr-alt-input { width: 80px; right: 36px; }
 
@@ -141,7 +158,7 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
   min-width: 80px !important;
   height: auto !important;
   min-height: 28px !important;
-  padding: 5px 12px 5px 8px !important;
+  padding: 5px 8px 5px 28px !important;
   border-radius: 4px !important;
   font-size: 12px !important;
   font-weight: 500 !important;
@@ -154,6 +171,21 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
   transform: none !important;
   clip: auto !important;
   clip-path: none !important;
+}
+
+/* Hide real budget inputs that are not alt inputs */
+.budget-card input[id^="from-date-picker-"]:not(.flatpickr-alt-input),
+.budget-card input[id^="to-date-picker-"]:not(.flatpickr-alt-input) {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  left: -9999px !important;
 }
 
 /* Analysis inputs styling */
@@ -174,7 +206,7 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
   max-width: 100% !important;
   height: auto !important;
   min-height: 28px !important;
-  padding: 4px 26px 4px 30px !important;
+  padding: 4px 8px 4px 28px !important;
   font-size: 12px !important;
   font-weight: 500 !important;
   border-radius: 4px !important;
