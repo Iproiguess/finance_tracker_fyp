@@ -36,41 +36,25 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
 
   const stopCamera = () => {
     console.log('====== stopCamera CALLED ======');
-    console.log('1. Check stream:', !!cameraStreamRef.current);
-    
+
     if (cameraStreamRef.current) {
-      console.log('2. Getting tracks from stream...');
       const tracks = cameraStreamRef.current.getTracks();
-      console.log('3. Found', tracks.length, 'tracks');
-      
-      tracks.forEach((track, index) => {
-        console.log(`   Track ${index}: kind=${track.kind}, readyState=${track.readyState}`);
-        console.log(`   Stopping track ${index}...`);
+      tracks.forEach((track) => {
         track.stop();
         track.enabled = false;
-        console.log(`   Track ${index} stopped`);
       });
-      
       cameraStreamRef.current = null;
-      console.log('4. cameraStreamRef set to null');
-    } else {
-      console.log('2. No stream to stop');
     }
-    
-    console.log('5. Check video element:', !!videoRef.current);
+
     if (videoRef.current) {
-      console.log('6. Clearing video srcObject and pausing...');
-      videoRef.current.srcObject = null;
       videoRef.current.pause();
-      console.log('7. Video element cleared and paused');
-    } else {
-      console.log('6. No video element to stop');
+      videoRef.current.srcObject = null;
+      videoRef.current.load();
     }
-    
-    console.log('8. Resetting videoStateDebug');
+
     setVideoStateDebug({});
-    
-    console.log('9. Setting cameraActive to FALSE');
+    setCameraLoading(false);
+    setCameraError('');
     setCameraActive(false);
     console.log('====== stopCamera FINISHED ======');
   };
@@ -112,18 +96,44 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
 
   const handleCameraButtonClick = () => {
     console.log('====== Camera button clicked ======');
-    console.log('Current cameraActive state:', cameraActive);
-    console.log('cameraStreamRef.current exists:', !!cameraStreamRef.current);
-    console.log('videoRef.current exists:', !!videoRef.current);
-    
+
     if (cameraActive) {
-      console.log('>>> CALLING stopCamera because cameraActive is TRUE');
       stopCamera();
-    } else {
-      console.log('>>> CALLING openCamera because cameraActive is FALSE');
-      openCamera();
+      return;
     }
+
+    setCameraError('');
+    setCameraLoading(true);
+    setVideoStateDebug({});
+    setCameraActive(true);
   };
+
+  useEffect(() => {
+    if (!cameraActive) return undefined;
+
+    let cancelled = false;
+
+    const startCamera = async () => {
+      try {
+        await openCamera();
+      } catch (err) {
+        if (!cancelled) {
+          const message = err && err.message ? err.message : 'Unable to access the camera.';
+          setCameraError(message);
+        }
+      } finally {
+        if (!cancelled) {
+          setCameraLoading(false);
+        }
+      }
+    };
+
+    startCamera();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cameraActive]);
 
   const submitTransaction = async (payload = formData) => {
     // Reuse the same submission path for both manual entry and parsed receipt data.
@@ -239,175 +249,66 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   const openCamera = async () => {
     console.log('openCamera called');
     setCameraError('');
-    setCameraLoading(true);
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        const msg = 'Camera access is not supported by this browser.';
-        console.error(msg);
-        setCameraError(msg);
-        setCameraLoading(false);
-        return;
-      }
-      
-      let stream;
-      
-      // Try with specific constraints first
-      try {
-        const constraints = {
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          audio: false
-        };
-        console.log('Attempting to get camera with specific constraints...');
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (err) {
-        console.warn('Specific constraints failed, trying basic video:', err.message);
-        // Fall back to basic video if specific constraints fail
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        } catch (basicErr) {
-          console.error('Basic video request also failed:', basicErr.message);
-          throw basicErr;
-        }
-      }
-      
-      console.log('Stream obtained:', stream);
-      console.log('Stream video tracks:', stream.getVideoTracks().length);
-      console.log('Stream audio tracks:', stream.getAudioTracks().length);
-      
-      const videoTracks = stream.getVideoTracks();
-      if (videoTracks.length > 0) {
-        console.log('First video track settings:', videoTracks[0].getSettings());
-        console.log('First video track state:', videoTracks[0].readyState);
-      }
-      
-      cameraStreamRef.current = stream;
-      
-      // Ensure video element is ready before assigning stream
-      if (videoRef.current) {
-        const video = videoRef.current;
-        
-        // Set essential attributes BEFORE srcObject
-        video.autoplay = true;
-        video.muted = true;
-        video.playsInline = true;
-        video.playsinline = true;
-        
-        console.log('Video attributes set');
-        
-        // Assign stream
-        video.srcObject = stream;
-        console.log('Stream assigned to video element');
-        
-        // Force play immediately
-        try {
-          const playPromise = video.play();
-          console.log('play() called, returned:', playPromise);
-          
-          if (playPromise !== undefined) {
-            await playPromise;
-            console.log('play() promise resolved - video should be playing now');
-          }
-        } catch (playErr) {
-          console.error('play() threw error:', playErr);
-        }
-        
-        // Wait for loadstart event which fires immediately when stream starts
-        await new Promise((resolve, reject) => {
-          let resolved = false;
-          
-          const onLoadStart = () => {
-            if (!resolved) {
-              resolved = true;
-              console.log('loadstart event fired - stream is being processed');
-              cleanup();
-              resolve();
-            }
-          };
-          
-          const onCanPlay = () => {
-            if (!resolved) {
-              resolved = true;
-              console.log(`canplay event fired, dimensions: ${video.videoWidth}x${video.videoHeight}, paused: ${video.paused}`);
-              cleanup();
-              resolve();
-            }
-          };
-          
-          const onLoadedMetadata = () => {
-            if (!resolved) {
-              resolved = true;
-              console.log(`loadedmetadata event fired, dimensions: ${video.videoWidth}x${video.videoHeight}, paused: ${video.paused}`);
-              cleanup();
-              resolve();
-            }
-          };
-          
-          const onError = (e) => {
-            if (!resolved) {
-              resolved = true;
-              console.error('Video element error:', e);
-              cleanup();
-              reject(new Error('Video element error: ' + e.message));
-            }
-          };
-          
-          const cleanup = () => {
-            video.removeEventListener('loadstart', onLoadStart);
-            video.removeEventListener('canplay', onCanPlay);
-            video.removeEventListener('loadedmetadata', onLoadedMetadata);
-            video.removeEventListener('error', onError);
-          };
-          
-          video.addEventListener('loadstart', onLoadStart);
-          video.addEventListener('canplay', onCanPlay);
-          video.addEventListener('loadedmetadata', onLoadedMetadata);
-          video.addEventListener('error', onError);
-          
-          // Timeout after 5 seconds - if nothing happens, just proceed
-          setTimeout(() => {
-            if (!resolved) {
-              resolved = true;
-              console.warn('Video events timeout, proceeding anyway - readyState:', video.readyState);
-              cleanup();
-              resolve();
-            }
-          }, 5000);
-        });
-      }
-      
-      console.log('Camera initialized, setting cameraActive to true');
-      setCameraActive(true);
-      
-      // Scroll into view after state updates
-      setTimeout(() => {
-        if (cameraContainerRef.current) {
-          console.log('Scrolling camera into view');
-          cameraContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 300);
-    } catch (err) {
-      console.error('Camera error in openCamera:', err);
-      let errorMsg = 'Unable to access the camera. ';
-      
-      if (err.name === 'NotAllowedError') {
-        errorMsg += 'Permission denied. Please check camera permissions and try again.';
-      } else if (err.name === 'NotFoundError') {
-        errorMsg += 'No camera found on this device.';
-      } else if (err.name === 'NotReadableError') {
-        errorMsg += 'Camera is already in use by another application.';
-      } else {
-        errorMsg += err.message || 'Please use upload instead.';
-      }
-      
-      setCameraError(errorMsg);
-    } finally {
-      console.log('openCamera finally block, setting cameraLoading to false');
-      setCameraLoading(false);
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('Camera access is not supported by this browser.');
     }
+
+    let stream;
+
+    try {
+      const constraints = {
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      };
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (err) {
+      console.warn('Specific camera constraints failed, trying basic video:', err?.message || err);
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      } catch (basicErr) {
+        const error = basicErr && basicErr.name ? basicErr : new Error(basicErr?.message || 'Unable to access the camera.');
+        if (error.name === 'NotAllowedError') {
+          throw new Error('Permission denied. Please check camera permissions and try again.');
+        }
+        if (error.name === 'NotFoundError') {
+          throw new Error('No camera found on this device.');
+        }
+        if (error.name === 'NotReadableError') {
+          throw new Error('Camera is already in use by another application.');
+        }
+        throw error;
+      }
+    }
+
+    cameraStreamRef.current = stream;
+
+    if (!videoRef.current) {
+      throw new Error('Camera preview is not ready yet. Please try again.');
+    }
+
+    const video = videoRef.current;
+    video.autoplay = true;
+    video.muted = true;
+    video.playsInline = true;
+    video.playsinline = true;
+    video.srcObject = stream;
+
+    try {
+      await video.play();
+    } catch (playErr) {
+      console.error('play() threw error:', playErr);
+    }
+
+    setTimeout(() => {
+      if (cameraContainerRef.current) {
+        cameraContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 300);
   };
 
   const captureReceiptPhoto = async () => {
