@@ -49,26 +49,9 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
     setCameraActive(false);
   };
 
-  // Clean up camera when component unmounts or window loses focus
+  // Clean up camera only when the form unmounts, not on every focus change.
   useEffect(() => {
-    const handleWindowBlur = () => {
-      // Stop camera when window loses focus to free up device
-      if (cameraActive) {
-        console.log('Window blurred, releasing camera');
-        stopCamera();
-      }
-    };
-    
-    const handleWindowFocus = () => {
-      console.log('Window focused');
-    };
-
-    window.addEventListener('blur', handleWindowBlur);
-    window.addEventListener('focus', handleWindowFocus);
-
     return () => {
-      window.removeEventListener('blur', handleWindowBlur);
-      window.removeEventListener('focus', handleWindowFocus);
       if (receiptPreview) {
         try { URL.revokeObjectURL(receiptPreview); } catch { /* ignore */ }
       }
@@ -78,7 +61,7 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
         workerRef.current = null;
       }
     };
-  }, [cameraActive, receiptPreview]);
+  }, [receiptPreview]);
 
   const submitTransaction = async (payload = formData) => {
     // Reuse the same submission path for both manual entry and parsed receipt data.
@@ -448,7 +431,6 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
-                    capture="environment"
                     onChange={handleReceiptUpload}
                     style={styles.hiddenInput}
                   />
