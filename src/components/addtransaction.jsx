@@ -176,18 +176,39 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('Camera access is not supported by this browser.');
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      
+      // Use more permissive constraints for mobile compatibility
+      const constraints = {
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       cameraStreamRef.current = stream;
+      
+      // Ensure video element is ready before assigning stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        // Force playback on mobile
+        videoRef.current.play().catch(err => {
+          console.warn('Video play failed:', err);
+        });
       }
+      
       setCameraActive(true);
+      
+      // Scroll into view after state updates
       setTimeout(() => {
         if (cameraContainerRef.current) {
           cameraContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-      }, 100);
+      }, 200);
     } catch (err) {
+      console.error('Camera error:', err);
       setCameraError(err.message || 'Unable to access the camera. Please use upload instead.');
     } finally {
       setCameraLoading(false);
@@ -198,8 +219,15 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
     if (!videoRef.current) return;
 
     const video = videoRef.current;
-    const width = video.videoWidth || 1280;
-    const height = video.videoHeight || 720;
+    
+    // Wait for video to have metadata/dimensions
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      setReceiptMessage('Waiting for camera to load... Please try again in a moment.');
+      return;
+    }
+    
+    const width = video.videoWidth;
+    const height = video.videoHeight;
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
@@ -333,7 +361,7 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
                     autoPlay
                     playsInline
                     muted
-                    style={styles.cameraPreview}
+                    style={{...styles.cameraPreview, WebkitPlaysinline: 'true'}}
                   />
                   <button
                     type="button"
