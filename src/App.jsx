@@ -351,10 +351,28 @@ function App() {
         }
       }) : null;
 
-      // Defensive: ensure any created alt inputs have our scoped class immediately
+      // Defensive: ensure any created alt inputs have our scoped class and inline styles
+      const styleAltInput = (fp) => {
+        if (!fp || !fp.altInput) return;
+        fp.altInput.classList.add('analysis-flatpickr-input');
+        fp.altInput.style.display = 'block';
+        fp.altInput.style.visibility = 'visible';
+        fp.altInput.style.opacity = '1';
+        fp.altInput.style.width = '100%';
+        fp.altInput.style.minWidth = '80px';
+        fp.altInput.style.padding = '4px 26px 4px 30px';
+        fp.altInput.style.border = '1px solid #ccc';
+        fp.altInput.style.borderRadius = '4px';
+        fp.altInput.style.backgroundColor = '#fff';
+        fp.altInput.style.color = '#000';
+        fp.altInput.style.fontSize = '12px';
+        fp.altInput.style.fontWeight = '500';
+        fp.altInput.style.boxSizing = 'border-box';
+        fp.altInput.style.pointerEvents = 'auto';
+      };
       try {
-        if (startFp && startFp.altInput) startFp.altInput.classList.add('analysis-flatpickr-input');
-        if (endFp && endFp.altInput) endFp.altInput.classList.add('analysis-flatpickr-input');
+        styleAltInput(startFp);
+        styleAltInput(endFp);
         // also guard in case flatpickr didn't attach altInput yet but DOM sibling exists
         if (startEl && startEl.nextElementSibling) startEl.nextElementSibling.classList.add('analysis-flatpickr-input');
         if (endEl && endEl.nextElementSibling) endEl.nextElementSibling.classList.add('analysis-flatpickr-input');
@@ -870,10 +888,10 @@ function App() {
             >Heatmap</button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', marginBottom: '0px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flexWrap: 'wrap', paddingLeft: '20px', paddingTop: '0px', paddingBottom: '0px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '170px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flexWrap: 'wrap', paddingLeft: isMobile ? '12px' : '20px', paddingRight: isMobile ? '12px' : '0px', paddingTop: '0px', paddingBottom: '0px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: isMobile ? '140px' : '170px', flex: isMobile ? '1 1 calc(50% - 7px)' : undefined }}>
                 <label htmlFor="start-date" style={{ color: '#000', fontWeight: '500', whiteSpace: 'nowrap', fontSize: '12px' }}>From:</label>
-                <div style={{ display: 'flex', alignItems: 'center', position: 'relative', flex: 1, minWidth: '120px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', position: 'relative', flex: 1, minWidth: '80px', overflow: 'visible' }}>
                   <input
                     id="start-date"
                     type="text"
@@ -978,9 +996,9 @@ function App() {
                   )}
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '170px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: isMobile ? '140px' : '170px', flex: isMobile ? '1 1 calc(50% - 7px)' : undefined }}>
                 <label htmlFor="end-date" style={{ color: '#000', fontWeight: '500', whiteSpace: 'nowrap', fontSize: '12px' }}>To:</label>
-                <div style={{ display: 'flex', alignItems: 'center', position: 'relative', flex: 1, minWidth: '120px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', position: 'relative', flex: 1, minWidth: '80px', overflow: 'visible' }}>
                   <input
                     id="end-date"
                     type="text"

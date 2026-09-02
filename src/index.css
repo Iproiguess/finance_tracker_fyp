@@ -93,6 +93,7 @@ input::-ms-expand {
 .flatpickr-input.flatpickr-alt-input:focus,
 .flatpickr-input.flatpickr-alt-input:active,
 .flatpickr-wrapper .flatpickr-input.flatpickr-alt-input {
+  display: block !important;
   position: static !important;
   right: auto !important;
   top: auto !important;
@@ -103,11 +104,14 @@ input::-ms-expand {
   border-radius: 4px !important;
   padding: 4px 26px 4px 30px !important;
   width: 100% !important;
+  height: auto !important;
   box-sizing: border-box !important;
   text-align: left !important;
   font-weight: 500 !important;
   pointer-events: auto !important;
   z-index: 1 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 /* Hide/neutralize the original flatpickr input so only the small alt box shows */
@@ -144,13 +148,17 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
 #end-date + .analysis-flatpickr-input,
 .analysis-flatpickr-input.active,
 .analysis-flatpickr-input:focus {
+  display: block !important;
   background: #fff !important;
   color: #000 !important;
   border: 1px solid #ccc !important;
   box-shadow: none !important;
   outline: none !important;
   width: 100% !important;
-  min-width: 120px !important;
+  min-width: 80px !important;
+  max-width: 100% !important;
+  height: auto !important;
+  min-height: 28px !important;
   padding: 4px 26px 4px 30px !important;
   font-size: 12px !important;
   font-weight: 500 !important;
@@ -160,15 +168,23 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
   position: static !important;
   right: auto !important;
   top: auto !important;
+  left: auto !important;
   transform: none !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  clip: auto !important;
+  clip-path: none !important;
 }
 
 /* Ensure any flatpickr-created alt input always uses the scoped class if present */
 .flatpickr-input.flatpickr-alt-input.analysis-flatpickr-input,
 .flatpickr-input.flatpickr-alt-input.budget-flatpickr-input {
+  display: block !important;
   background: #fff !important;
   color: #000 !important;
   border: 1px solid #ccc !important;
   box-shadow: none !important;
   padding: 5px 12px 5px 30px !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
