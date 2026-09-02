@@ -34,19 +34,41 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   const workerRef = useRef(null);
 
   const stopCamera = () => {
+    console.log('stopCamera called');
     if (cameraStreamRef.current) {
-      cameraStreamRef.current.getTracks().forEach(track => track.stop());
+      cameraStreamRef.current.getTracks().forEach(track => {
+        track.stop();
+        track.enabled = false;
+      });
       cameraStreamRef.current = null;
     }
     if (videoRef.current) {
       videoRef.current.srcObject = null;
+      videoRef.current.pause();
     }
     setCameraActive(false);
   };
 
-  // Revoke preview URLs, stop camera, and terminate OCR worker when component unmounts.
+  // Clean up camera when component unmounts or window loses focus
   useEffect(() => {
+    const handleWindowBlur = () => {
+      // Stop camera when window loses focus to free up device
+      if (cameraActive) {
+        console.log('Window blurred, releasing camera');
+        stopCamera();
+      }
+    };
+    
+    const handleWindowFocus = () => {
+      console.log('Window focused');
+    };
+
+    window.addEventListener('blur', handleWindowBlur);
+    window.addEventListener('focus', handleWindowFocus);
+
     return () => {
+      window.removeEventListener('blur', handleWindowBlur);
+      window.removeEventListener('focus', handleWindowFocus);
       if (receiptPreview) {
         try { URL.revokeObjectURL(receiptPreview); } catch { /* ignore */ }
       }
@@ -56,7 +78,7 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
         workerRef.current = null;
       }
     };
-  }, [receiptPreview]);
+  }, [cameraActive, receiptPreview]);
 
   const submitTransaction = async (payload = formData) => {
     // Reuse the same submission path for both manual entry and parsed receipt data.
@@ -170,11 +192,16 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   };
 
   const openCamera = async () => {
+    console.log('openCamera called');
     setCameraError('');
     setCameraLoading(true);
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera access is not supported by this browser.');
+        const msg = 'Camera access is not supported by this browser.';
+        console.error(msg);
+        setCameraError(msg);
+        setCameraLoading(false);
+        return;
       }
       
       let stream;
@@ -189,53 +216,93 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
           },
           audio: false
         };
+        console.log('Attempting to get camera with specific constraints...');
         stream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (err) {
         console.warn('Specific constraints failed, trying basic video:', err.message);
         // Fall back to basic video if specific constraints fail
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        } catch (basicErr) {
+          console.error('Basic video request also failed:', basicErr.message);
+          throw basicErr;
+        }
       }
       
+      console.log('Stream obtained:', stream);
       cameraStreamRef.current = stream;
       
       // Ensure video element is ready before assigning stream
       if (videoRef.current) {
+        // Set the srcObject first
         videoRef.current.srcObject = stream;
+        videoRef.current.muted = true;
         
-        // Wait for video metadata to be loaded
+        console.log('Stream assigned to video element');
+        
+        // Wait for video to be canplay state
         await new Promise((resolve, reject) => {
-          const onLoadedMetadata = () => {
-            videoRef.current.removeEventListener('loadedmetadata', onLoadedMetadata);
-            resolve();
+          let resolved = false;
+          
+          const onCanPlay = () => {
+            if (!resolved) {
+              resolved = true;
+              console.log('Video canplay event fired');
+              videoRef.current?.removeEventListener('canplay', onCanPlay);
+              videoRef.current?.removeEventListener('error', onError);
+              resolve();
+            }
           };
-          const onError = () => {
-            videoRef.current.removeEventListener('error', onError);
-            reject(new Error('Video element error'));
+          
+          const onError = (e) => {
+            if (!resolved) {
+              resolved = true;
+              console.error('Video element error:', e);
+              videoRef.current?.removeEventListener('canplay', onCanPlay);
+              videoRef.current?.removeEventListener('error', onError);
+              reject(new Error('Video element error: ' + e.message));
+            }
           };
-          videoRef.current.addEventListener('loadedmetadata', onLoadedMetadata);
+          
+          videoRef.current.addEventListener('canplay', onCanPlay);
           videoRef.current.addEventListener('error', onError);
-          // Timeout after 3 seconds
-          setTimeout(() => reject(new Error('Video metadata loading timeout')), 3000);
+          
+          // Timeout after 5 seconds
+          setTimeout(() => {
+            if (!resolved) {
+              resolved = true;
+              console.warn('Video canplay timeout, proceeding anyway');
+              videoRef.current?.removeEventListener('canplay', onCanPlay);
+              videoRef.current?.removeEventListener('error', onError);
+              resolve();
+            }
+          }, 5000);
         });
         
         // Force playback on mobile
         try {
-          await videoRef.current.play();
+          const playPromise = videoRef.current.play();
+          if (playPromise !== undefined) {
+            await playPromise;
+            console.log('Video playing');
+          }
         } catch (err) {
           console.warn('Video play failed:', err);
         }
       }
       
+      console.log('Camera initialized successfully, setting cameraActive to true');
       setCameraActive(true);
       
       // Scroll into view after state updates
       setTimeout(() => {
         if (cameraContainerRef.current) {
+          console.log('Scrolling camera into view');
           cameraContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-      }, 200);
+      }, 300);
     } catch (err) {
-      console.error('Camera error:', err);
+      console.error('Camera error in openCamera:', err);
       let errorMsg = 'Unable to access the camera. ';
       
       if (err.name === 'NotAllowedError') {
@@ -250,17 +317,21 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
       
       setCameraError(errorMsg);
     } finally {
+      console.log('openCamera finally block, setting cameraLoading to false');
       setCameraLoading(false);
     }
   };
 
   const captureReceiptPhoto = async () => {
+    console.log('captureReceiptPhoto called, videoRef:', videoRef.current);
     if (!videoRef.current) return;
 
     const video = videoRef.current;
+    console.log(`Video dimensions: ${video.videoWidth} x ${video.videoHeight}`);
     
     // Wait for video to have metadata/dimensions
     if (video.videoWidth === 0 || video.videoHeight === 0) {
+      console.warn('Video dimensions not ready');
       setReceiptMessage('Waiting for camera to load... Please try again in a moment.');
       return;
     }
@@ -397,10 +468,13 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
                 <div ref={cameraContainerRef} style={styles.cameraContainer}>
                   <video
                     ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    style={{...styles.cameraPreview, WebkitPlaysinline: 'true'}}
+                    autoPlay={true}
+                    playsInline={true}
+                    muted={true}
+                    controls={false}
+                    width="100%"
+                    height="auto"
+                    style={styles.cameraPreview}
                   />
                   <button
                     type="button"

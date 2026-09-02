@@ -122,7 +122,9 @@ export const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: uiTheme.spacing.sm,
-    marginTop: uiTheme.spacing.sm
+    marginTop: uiTheme.spacing.sm,
+    width: '100%',
+    overflow: 'hidden'
   },
   cameraPreview: {
     width: '100%',
@@ -131,7 +133,10 @@ export const styles = {
     height: '40vh',
     borderRadius: '12px',
     backgroundColor: '#000',
-    objectFit: 'cover'
+    objectFit: 'cover',
+    display: 'block',
+    WebkitAppearance: 'none',
+    appearance: 'none'
   },
   captureButton: {
     padding: uiTheme.spacing.sm,
