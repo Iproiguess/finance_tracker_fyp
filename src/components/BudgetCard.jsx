@@ -71,6 +71,26 @@ export default function BudgetCard({
         altInputClass: 'budget-flatpickr-input'
       };
 
+      // Apply inline styles to alt inputs
+      const styleAltInput = (fp) => {
+        if (!fp || !fp.altInput) return;
+        fp.altInput.classList.add('budget-flatpickr-input');
+        fp.altInput.style.display = 'block';
+        fp.altInput.style.visibility = 'visible';
+        fp.altInput.style.opacity = '1';
+        fp.altInput.style.width = '100%';
+        fp.altInput.style.minWidth = '80px';
+        fp.altInput.style.padding = '5px 12px 5px 8px';
+        fp.altInput.style.border = '1px solid #ccc';
+        fp.altInput.style.borderRadius = '4px';
+        fp.altInput.style.backgroundColor = '#fff';
+        fp.altInput.style.color = '#000';
+        fp.altInput.style.fontSize = '12px';
+        fp.altInput.style.fontWeight = '500';
+        fp.altInput.style.boxSizing = 'border-box';
+        fp.altInput.style.pointerEvents = 'auto';
+      };
+
       if (fromEl) {
         fromFpRef.current = flatpickr(fromEl, {
           ...baseOpts,
@@ -80,6 +100,7 @@ export default function BudgetCard({
             if (viewAll) setViewAll(false);
           }
         });
+        styleAltInput(fromFpRef.current);
       }
 
       if (toEl) {
@@ -91,6 +112,7 @@ export default function BudgetCard({
             if (viewAll) setViewAll(false);
           }
         });
+        styleAltInput(toFpRef.current);
       }
 
       return () => {
@@ -244,10 +266,10 @@ export default function BudgetCard({
           <p style={{ margin: '0 0 8px 0', color: '#000', fontSize: 13, fontWeight: '600', textTransform: 'uppercase' }}>
             View Expenses By Date Range
           </p>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', overflow: 'visible' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'visible' }}>
               <label style={{ color: '#000', fontWeight: '500', whiteSpace: 'nowrap', fontSize: '12px' }}>From:</label>
-              <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+              <div style={{ display: 'flex', alignItems: 'center', position: 'relative', overflow: 'visible' }}>
                 <input
                   id={fromPickerId}
                   type="text"
@@ -323,9 +345,9 @@ export default function BudgetCard({
                 </button>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'visible' }}>
               <label style={{ color: '#000', fontWeight: '500', whiteSpace: 'nowrap', fontSize: '12px' }}>To:</label>
-              <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+              <div style={{ display: 'flex', alignItems: 'center', position: 'relative', overflow: 'visible' }}>
                 <input
                   id={toPickerId}
                   type="text"

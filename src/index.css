@@ -130,15 +130,30 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
 .budget-card .budget-flatpickr-input,
 .budget-flatpickr-input.flatpickr-alt-input,
 .budget-card input.budget-flatpickr-input {
+  display: block !important;
   background: #fff !important;
   color: #000 !important;
   border: 1px solid #ccc !important;
   box-shadow: none !important;
   outline: none !important;
   pointer-events: auto !important;
-  width: 110px !important;
+  width: 100% !important;
+  min-width: 80px !important;
+  height: auto !important;
+  min-height: 28px !important;
   padding: 5px 12px 5px 8px !important;
   border-radius: 4px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: static !important;
+  right: auto !important;
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+  clip: auto !important;
+  clip-path: none !important;
 }
 
 /* Analysis inputs styling */
