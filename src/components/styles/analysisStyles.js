@@ -265,8 +265,12 @@ export const styles = {
   mainContent: {
     flex: 1,
     padding: '0 20px 20px 20px',
-    overflowY: 'hidden',
-    backgroundColor: '#f5f5f5'
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    backgroundColor: '#f5f5f5',
+    minHeight: 0,
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none'
   },
 
   pageTitle: {

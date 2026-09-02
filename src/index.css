@@ -93,21 +93,21 @@ input::-ms-expand {
 .flatpickr-input.flatpickr-alt-input:focus,
 .flatpickr-input.flatpickr-alt-input:active,
 .flatpickr-wrapper .flatpickr-input.flatpickr-alt-input {
-  position: absolute;
-  right: 8px !important;
-  top: 50%;
-  transform: translateY(-50%);
+  position: static !important;
+  right: auto !important;
+  top: auto !important;
+  transform: none !important;
   background: #fff !important;
   color: #000 !important;
-  border: 1px solid #ddd !important;
-  border-radius: 6px !important;
-  padding: 6px 8px !important;
-  width: 96px !important;
-  box-sizing: border-box;
-  text-align: center;
-  font-weight: 600;
-  pointer-events: none;
-  z-index: 1000;
+  border: 1px solid #ccc !important;
+  border-radius: 4px !important;
+  padding: 4px 26px 4px 30px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  text-align: left !important;
+  font-weight: 500 !important;
+  pointer-events: auto !important;
+  z-index: 1 !important;
 }
 
 /* Hide/neutralize the original flatpickr input so only the small alt box shows */
@@ -149,12 +149,18 @@ input.flatpickr-input:not(.flatpickr-alt-input) {
   border: 1px solid #ccc !important;
   box-shadow: none !important;
   outline: none !important;
-  width: 120px !important;
-  padding: 5px 12px 5px 30px !important;
+  width: 100% !important;
+  min-width: 120px !important;
+  padding: 4px 26px 4px 30px !important;
   font-size: 12px !important;
   font-weight: 500 !important;
   border-radius: 4px !important;
   box-sizing: border-box !important;
+  pointer-events: auto !important;
+  position: static !important;
+  right: auto !important;
+  top: auto !important;
+  transform: none !important;
 }
 
 /* Ensure any flatpickr-created alt input always uses the scoped class if present */

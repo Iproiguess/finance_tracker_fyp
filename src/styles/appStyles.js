@@ -138,6 +138,8 @@ export const appStyles = {
     transition: 'all 0.18s cubic-bezier(.4,0,.2,1)',
     position: 'relative',
     boxSizing: 'border-box',
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none',
   },
   menuBtnActive: {
     background: '#d3d6de',
