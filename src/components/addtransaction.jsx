@@ -177,26 +177,53 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
         throw new Error('Camera access is not supported by this browser.');
       }
       
-      // Use more permissive constraints for mobile compatibility
-      const constraints = {
-        video: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false
-      };
+      let stream;
       
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      // Try with specific constraints first
+      try {
+        const constraints = {
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        console.warn('Specific constraints failed, trying basic video:', err.message);
+        // Fall back to basic video if specific constraints fail
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
+      
       cameraStreamRef.current = stream;
       
       // Ensure video element is ready before assigning stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        // Force playback on mobile
-        videoRef.current.play().catch(err => {
-          console.warn('Video play failed:', err);
+        
+        // Wait for video metadata to be loaded
+        await new Promise((resolve, reject) => {
+          const onLoadedMetadata = () => {
+            videoRef.current.removeEventListener('loadedmetadata', onLoadedMetadata);
+            resolve();
+          };
+          const onError = () => {
+            videoRef.current.removeEventListener('error', onError);
+            reject(new Error('Video element error'));
+          };
+          videoRef.current.addEventListener('loadedmetadata', onLoadedMetadata);
+          videoRef.current.addEventListener('error', onError);
+          // Timeout after 3 seconds
+          setTimeout(() => reject(new Error('Video metadata loading timeout')), 3000);
         });
+        
+        // Force playback on mobile
+        try {
+          await videoRef.current.play();
+        } catch (err) {
+          console.warn('Video play failed:', err);
+        }
       }
       
       setCameraActive(true);
@@ -209,7 +236,19 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
       }, 200);
     } catch (err) {
       console.error('Camera error:', err);
-      setCameraError(err.message || 'Unable to access the camera. Please use upload instead.');
+      let errorMsg = 'Unable to access the camera. ';
+      
+      if (err.name === 'NotAllowedError') {
+        errorMsg += 'Permission denied. Please check camera permissions and try again.';
+      } else if (err.name === 'NotFoundError') {
+        errorMsg += 'No camera found on this device.';
+      } else if (err.name === 'NotReadableError') {
+        errorMsg += 'Camera is already in use by another application.';
+      } else {
+        errorMsg += err.message || 'Please use upload instead.';
+      }
+      
+      setCameraError(errorMsg);
     } finally {
       setCameraLoading(false);
     }
