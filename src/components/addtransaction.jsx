@@ -14,6 +14,8 @@ const validateAmountInput = (value) => {
   return true;
 };
 
+const OCR_TIMEOUT_MS = 30000;
+
 export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   const { addTransaction, updateTransaction } = useTransactions();
   const [formData, setFormData] = useState(() => getInitialFormData(editingTransaction));
@@ -33,6 +35,35 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   const cameraContainerRef = useRef(null);
   const cameraStreamRef = useRef(null);
   const workerRef = useRef(null);
+  const receiptPreviewRef = useRef('');
+
+  const recognizeReceipt = async (file) => {
+    if (!workerRef.current) {
+      workerRef.current = await createWorker('eng');
+    }
+
+    let timeoutId;
+    try {
+      return await Promise.race([
+        workerRef.current.recognize(file),
+        new Promise((_, reject) => {
+          timeoutId = setTimeout(() => {
+            const timeoutError = new Error('Receipt reading timed out. Please try again with a clearer photo.');
+            timeoutError.name = 'OCRTimeoutError';
+            reject(timeoutError);
+          }, OCR_TIMEOUT_MS);
+        })
+      ]);
+    } catch (err) {
+      if (err.name === 'OCRTimeoutError') {
+        try { await workerRef.current.terminate(); } catch { /* ignore */ }
+        workerRef.current = null;
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
 
   const stopCamera = () => {
     console.log('====== stopCamera CALLED ======');
@@ -59,11 +90,11 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
     console.log('====== stopCamera FINISHED ======');
   };
 
-  // Clean up camera only when the form unmounts, not on every focus change.
+  // Clean up camera and OCR only when the form unmounts.
   useEffect(() => {
     return () => {
-      if (receiptPreview) {
-        try { URL.revokeObjectURL(receiptPreview); } catch { /* ignore */ }
+      if (receiptPreviewRef.current) {
+        try { URL.revokeObjectURL(receiptPreviewRef.current); } catch { /* ignore */ }
       }
       stopCamera();
       if (workerRef.current) {
@@ -71,7 +102,7 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
         workerRef.current = null;
       }
     };
-  }, [receiptPreview]);
+  }, []);
 
   // Monitor video element state when camera is active
   useEffect(() => {
@@ -213,14 +244,12 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
     setReceiptProcessing(true);
     setReceiptMessage('');
     setReceiptData(null);
-    setReceiptPreview(URL.createObjectURL(file));
+    const previewUrl = URL.createObjectURL(file);
+    receiptPreviewRef.current = previewUrl;
+    setReceiptPreview(previewUrl);
 
     try {
-      if (!workerRef.current) {
-        workerRef.current = await createWorker('eng');
-      }
-
-      const { data: { text } } = await workerRef.current.recognize(file);
+      const { data: { text } } = await recognizeReceipt(file);
       const parsed = parseReceiptText(text);
 
       if (!parsed.amount && !parsed.description) {
@@ -347,14 +376,12 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
     setReceiptProcessing(true);
     setReceiptMessage('');
     setReceiptData(null);
-    setReceiptPreview(URL.createObjectURL(file));
+    const previewUrl = URL.createObjectURL(file);
+    receiptPreviewRef.current = previewUrl;
+    setReceiptPreview(previewUrl);
 
     try {
-      if (!workerRef.current) {
-        workerRef.current = await createWorker('eng');
-      }
-
-      const { data: { text } } = await workerRef.current.recognize(file);
+      const { data: { text } } = await recognizeReceipt(file);
       const parsed = parseReceiptText(text);
 
       if (!parsed.amount && !parsed.description) {
