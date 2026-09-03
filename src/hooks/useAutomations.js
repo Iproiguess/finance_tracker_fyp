@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 let automationExecutionPromise = null;
@@ -37,6 +37,7 @@ let automationExecutionPromise = null;
  * @returns {Object} Object with automation management functions and state
  */
 export function useAutomations() {
+  const insertAutomatedTransactionRef = useRef(null);
   const [automations, setAutomations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -94,7 +95,7 @@ export function useAutomations() {
         const day = String(now.getDate()).padStart(2, '0');
         const today = `${year}-${month}-${day}`;
         if (today >= automationData.start_date) {
-          await insertAutomatedTransaction(data[0].automation_id, automationData);
+          await insertAutomatedTransactionRef.current(data[0].automation_id, automationData);
         }
       }
 
@@ -216,6 +217,7 @@ export function useAutomations() {
       throw err;
     }
   }, []);
+  insertAutomatedTransactionRef.current = insertAutomatedTransaction;
   
   /**
    * CRITICAL: Execute automations with BACKFILL support for missed days

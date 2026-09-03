@@ -58,9 +58,7 @@ import { formatCurrency } from './styles/budgetSummaryStyles';
  */
 export function HeatmapSection({
   transactions = [],
-  categories = [],
   simulationResult = null,
-  budgets = [],
 }) {
   // State for multi-cell selection
   const [selectedCells, setSelectedCells] = useState([]);
@@ -97,7 +95,7 @@ export function HeatmapSection({
     scroller.scrollLeft = drag.startScrollLeft - (event.clientX - drag.startX);
   };
 
-  const handleHeatmapPointerUp = (event) => {
+  const handleHeatmapPointerUp = () => {
     const wasDragged = heatmapDragRef.current.moved;
     const scroller = heatmapScrollerRef.current;
     if (scroller) {
@@ -227,25 +225,22 @@ export function HeatmapSection({
   };
 
   // CHECKPOINT 3 - Generate all 365 days
-  const generateYearDays = () => {
-    const year = selectedYear;
+  const yearDays = useMemo(() => {
     const days = [];
-    const startDate = new Date(year, 0, 1);
-    const endDate = new Date(year, 11, 31);
+    const startDate = new Date(selectedYear, 0, 1);
+    const endDate = new Date(selectedYear, 11, 31);
 
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split('T')[0];
+    for (let day = new Date(startDate); day <= endDate; day.setDate(day.getDate() + 1)) {
+      const dateStr = day.toISOString().split('T')[0];
       days.push({
         dateStr,
-        day: new Date(d),
-        dayOfWeek: new Date(d).getDay(),
+        day: new Date(day),
+        dayOfWeek: new Date(day).getDay(),
         spending: dailySpendingMap[dateStr] || 0,
       });
     }
     return days;
-  };
-
-  const yearDays = useMemo(() => generateYearDays(), [selectedYear]);
+  }, [selectedYear, dailySpendingMap]);
 
   // CHECKPOINT 4 - Organize into weeks with month labels
   const getWeeksDataWithMonths = () => {

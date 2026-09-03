@@ -1,3 +1,5 @@
+import { formatDateToDDMMYYYY } from '../../utils/dateFormatter';
+
 /**
  * Styles for TransactionList component
  */
@@ -41,7 +43,7 @@ export const getTransactionSign = (type) => {
  * Format date to local string
  */
 export const formatDate = (dateString) => {
-  return new Date(dateString).toLocaleDateString();
+  return formatDateToDDMMYYYY(String(dateString).slice(0, 10));
 };
 
 /**

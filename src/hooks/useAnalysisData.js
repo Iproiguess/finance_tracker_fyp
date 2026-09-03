@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { getCurrentSpendingByBudget, getCurrentIncomeByBudget, MONTH_NAMES } from '../components/utils/budgetUtils';
+import { MONTH_NAMES } from '../components/utils/budgetUtils';
 
 const sumByType = (items, type) => items.filter(t => t.type === type).reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
 

@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAutomations } from '../hooks/useAutomations';
 import { useCategories } from '../hooks/usecategories';
-import { styles as transactionStyles, formatCurrency } from './utils/transactionUtils';
+import { formatCurrency } from './utils/transactionUtils';
 import { DeleteTransactionConfirmModal } from './DeleteTransactionConfirmModal';
+import { formatDateToDDMMYYYY } from '../utils/dateFormatter';
 
 /**
  * AutomationModal: Modal component for creating and managing automated transactions
@@ -12,9 +13,8 @@ import { DeleteTransactionConfirmModal } from './DeleteTransactionConfirmModal';
  * - Manage existing automations (activate, edit, delete)
  */
 export function AutomationModal({ open, onClose, onAutomationCreated = () => {} }) {
-  const { automations, loading: autoLoading, createAutomation, updateAutomation, toggleAutomationStatus, deleteAutomation } = useAutomations();
+  const { automations, loading: autoLoading, createAutomation, toggleAutomationStatus, deleteAutomation } = useAutomations();
   const { categories } = useCategories();
-  const [editingId, setEditingId] = useState(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
   // Form state for creating/editing automation
@@ -46,16 +46,8 @@ export function AutomationModal({ open, onClose, onAutomationCreated = () => {} 
       frequency_days: 30,
       is_active: true,
     });
-    setEditingId(null);
     setAddNow(true);
   }, []);
-
-  // Reset form to initial state (full reset including messages)
-  const resetForm = useCallback(() => {
-    resetFormFields();
-    setError('');
-    setSuccess('');
-  }, [resetFormFields]);
 
   // Handle form input changes
   const handleInputChange = useCallback((e) => {
@@ -109,8 +101,7 @@ export function AutomationModal({ open, onClose, onAutomationCreated = () => {} 
         if (today >= formData.start_date) {
           successMessage = 'Automation created and transaction added!';
         } else {
-          const startDateObj = new Date(formData.start_date);
-          const formattedDate = startDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          const formattedDate = formatDateToDDMMYYYY(formData.start_date);
           successMessage = `Automation created! Transactions will start on ${formattedDate}`;
         }
       }
@@ -171,7 +162,12 @@ export function AutomationModal({ open, onClose, onAutomationCreated = () => {} 
 
   return (
     <div style={automationStyles.overlay} onClick={onClose}>
+      <style>{`
+        .automation-modal-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+        .automation-modal-scrollbar::-webkit-scrollbar { display: none; }
+      `}</style>
       <div
+        className="automation-modal-scrollbar"
         style={automationStyles.modal}
         ref={modalRef}
         onClick={(e) => e.stopPropagation()}
@@ -400,7 +396,7 @@ export function AutomationModal({ open, onClose, onAutomationCreated = () => {} 
                         {automation.frequency === 'custom' && ` (Every ${automation.frequency_days} days)`}
                       </span>
                       <span style={{ marginLeft: '12px', color: '#7f8c8d', fontSize: '11px' }}>
-                        Start: {new Date(automation.start_date).toLocaleDateString()}
+                        Start: {formatDateToDDMMYYYY(automation.start_date)}
                       </span>
                     </div>
                   </div>

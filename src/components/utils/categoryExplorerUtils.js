@@ -1,4 +1,6 @@
 
+import { formatDateToDDMMYYYY } from '../../utils/dateFormatter';
+
 export const styles = {
   explorer: { display: 'flex', height: '100%', minHeight: 0, background: 'linear-gradient(135deg, #171d31 0%, #232946 100%)', color: '#e7eaf1' },
   sidebar: { width: '260px', background: 'linear-gradient(180deg, #20263d 0%, #151a2b 100%)', borderRight: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', color: '#e7eaf1', height: '100%', minHeight: 0, overflowY: 'hidden', boxShadow: 'inset -1px 0 0 rgba(255,255,255,0.04)' },
@@ -86,7 +88,7 @@ export const formatCurrency = (amount) => {
  * Format date to locale string
  */
 export const formatDate = (dateString) => {
-  return new Date(dateString).toLocaleDateString();
+  return formatDateToDDMMYYYY(String(dateString).slice(0, 10));
 };
 
 /**

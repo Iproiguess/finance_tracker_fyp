@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createWorker } from 'tesseract.js';
+import flatpickr from 'flatpickr';
+import 'flatpickr/dist/flatpickr.min.css';
 import { supabase } from '../lib/supabase';
 import { useTransactions } from '../hooks/usetransactions';
 import { styles, getInitialFormData, getTypeButtonStyle } from './styles/addTransactionStyles';
@@ -36,6 +38,8 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   const cameraStreamRef = useRef(null);
   const workerRef = useRef(null);
   const receiptPreviewRef = useRef('');
+  const datePickerRef = useRef(null);
+  const initialDateRef = useRef(formData.date);
 
   const recognizeReceipt = async (file) => {
     if (!workerRef.current) {
@@ -165,6 +169,31 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
       cancelled = true;
     };
   }, [cameraActive]);
+
+  useEffect(() => {
+    const dateInput = datePickerRef.current;
+    if (!dateInput) return undefined;
+
+    const datePicker = flatpickr(dateInput, {
+      altInput: true,
+      altFormat: 'd/m/Y',
+      dateFormat: 'Y-m-d',
+      altInputClass: 'add-transaction-date-input',
+      allowInput: true,
+      defaultDate: initialDateRef.current || null,
+      onChange: (_selectedDates, dateValue) => {
+        setFormData(prev => ({ ...prev, date: dateValue }));
+      }
+    });
+
+    return () => datePicker.destroy();
+  }, []);
+
+  useEffect(() => {
+    if (datePickerRef.current?._flatpickr && formData.date) {
+      datePickerRef.current._flatpickr.setDate(formData.date, false);
+    }
+  }, [formData.date]);
 
   const submitTransaction = async (payload = formData) => {
     // Reuse the same submission path for both manual entry and parsed receipt data.
@@ -412,8 +441,8 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   };
 
   return (
-    <div style={styles.overlay}>
-      <div style={styles.modal}>
+    <div style={styles.overlay} onClick={onClose}>
+      <div className="receipt-modal-scrollbar" style={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div style={styles.header}>
           <h2 style={styles.modalTitle}>
             {editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
@@ -436,12 +465,25 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
         </div>
         <style>{`
           .category-explorer-animated-btn, [aria-label='Close'] { outline: none !important; }
+          .receipt-modal-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+          .receipt-modal-scrollbar::-webkit-scrollbar { display: none; }
+          .add-transaction-date-input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1.5px solid #e3e7ed;
+            font-size: 16px;
+            outline: none;
+            background: #f4f6fa;
+            color: #22223b;
+          }
           input[type="date"]::-webkit-calendar-picker-indicator {
             filter: invert(0) brightness(0);
             cursor: pointer;
           }
         `}</style>
-        <div style={{ ...styles.content, ...styles.scrollableBody }}>
+        <div className="receipt-modal-scrollbar" style={{ ...styles.content, ...styles.scrollableBody }}>
           {error && <div style={styles.errorBox}>{error}</div>}
           <form onSubmit={handleSubmit} style={styles.form} autoComplete="off">
             <div style={styles.field}>
@@ -586,8 +628,11 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
             <div style={styles.field}>
               <label style={styles.label}>Date</label>
               <input
+                ref={datePickerRef}
+                id="add-transaction-date"
                 type="date"
                 name="date"
+                lang="en-GB"
                 value={formData.date}
                 onChange={handleChange}
                 style={styles.input}

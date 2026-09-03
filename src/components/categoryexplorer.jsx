@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useCategories } from '../hooks/usecategories';
 import { useTransactions } from '../hooks/usetransactions';
 import { useBudgets } from '../hooks/usebudgets';
@@ -23,8 +23,6 @@ export function CategoryExplorer({ selectedCategoryId = null, onCategorySelect =
   const [selectedTransactionForDetails, setSelectedTransactionForDetails] = useState(null);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [hoveredAddBtn, setHoveredAddBtn] = useState(false);
-  const initializedRef = useRef(false);
-
   const { categories, loading: catsLoading, fetchCategories, addCategory, deleteCategory } = useCategories();
   const { transactions, loading: txnLoading, categoryStats, fetchTransactions, fetchCategoryStats, deleteTransaction } = useTransactions();
   const { budgets, loading: budgetsLoading } = useBudgets();
@@ -34,22 +32,12 @@ export function CategoryExplorer({ selectedCategoryId = null, onCategorySelect =
     setEditingCategory(category);
   };
 
-  const selectedCategory = selectedCategoryId ?? internalSelectedCategory;
+  const selectedCategory = selectedCategoryId ?? internalSelectedCategory ?? categories[0]?.category_id;
   const sidebarStyle = isMobile ? { ...styles.sidebar, display: 'none' } : styles.sidebar;
 
-  useLayoutEffect(() => {
-    if (!selectedCategoryId && categories.length > 0 && !initializedRef.current) {
-      initializedRef.current = true;
-      setInternalSelectedCategory(categories[0].category_id);
-    }
-  }, [categories, selectedCategoryId]);
-
   useEffect(() => {
-    if (openCategoryManager) {
-      setShowCategoryManager(true);
-      if (onCategoryManagerHandled) {
-        onCategoryManagerHandled();
-      }
+    if (openCategoryManager && onCategoryManagerHandled) {
+      onCategoryManagerHandled();
     }
   }, [openCategoryManager, onCategoryManagerHandled]);
 
@@ -72,7 +60,7 @@ export function CategoryExplorer({ selectedCategoryId = null, onCategorySelect =
 
   return (
     <div style={styles.explorer}>      
-      {showCategoryManager && !editingCategoryId && (
+      {(showCategoryManager || openCategoryManager) && !editingCategoryId && (
         <CategoryManager
           onClose={handleCloseCategoryManager}
           categories={categories}

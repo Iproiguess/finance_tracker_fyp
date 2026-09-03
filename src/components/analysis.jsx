@@ -13,7 +13,7 @@ import { ForecastAndRecommendation } from './ForecastAndRecommendation';
 import { HeatmapSection } from './HeatmapModal';
 
 // Custom tooltip component for trend chart
-const TrendChartTooltip = ({ active, payload, label }) => {
+const TrendChartTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     return (
       <div style={{ backgroundColor: '#fff', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}>
@@ -91,7 +91,7 @@ export function Analysis({ activeFeatures = { forecast: false, simulation: false
       setSimulationResult(null);
       simulationInitializedRef.current = false;
     }
-  }, [activeFeatures.simulation]);
+  }, [activeFeatures.simulation, setSimulationResult]);
 
   if (loading) return <div style={styles.container}><div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: '#333', fontWeight: 500 }}>Loading analysis...</div></div>;
 

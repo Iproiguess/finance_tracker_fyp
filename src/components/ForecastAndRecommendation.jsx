@@ -2,29 +2,7 @@ import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { formatCurrency } from '../config/constants';
 
-const getMonthlyChangeColor = (type, monthlyDifference) => {
-  if (type === 'expense') {
-    // For expenses: negative (decrease) is good (green), positive (increase) is bad (red)
-    return monthlyDifference <= 0 ? '#27ae60' : '#e74c3c';
-  }
-  if (type === 'income') {
-    // For income: positive (increase) is good (green), negative (decrease) is bad (red)
-    return monthlyDifference >= 0 ? '#27ae60' : '#e74c3c';
-  }
-  // For both: positive net difference is better (green), negative is worse (red)
-  return monthlyDifference >= 0 ? '#27ae60' : '#e74c3c';
-};
-
-const getCumulativeImpactStyle = (type, cumulativeValue) => {
-  const isPositive = type === 'expense' ? cumulativeValue <= 0 : cumulativeValue >= 0;
-  return {
-    backgroundColor: isPositive ? '#e8f5e9' : '#ffebee',
-    borderColor: isPositive ? '#27ae60' : '#e74c3c',
-    textColor: isPositive ? '#27ae60' : '#e74c3c'
-  };
-};
-
-export function ForecastAndRecommendation({ simulationResult, transactions, budgets = [], selectedBudgetIds = new Set() }) {
+export function ForecastAndRecommendation({ simulationResult, transactions, budgets = [] }) {
   // Filter transactions to only include those from selected categories in simulation
   let relevantTransactions = transactions;
   

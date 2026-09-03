@@ -1,11 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { styles } from './styles/budgetStyles';
 import { formatCurrency } from '../config/constants';
-import { formatDateToDDMMYYYY } from '../utils/dateFormatter';
 import flatpickr from 'flatpickr';
 import 'flatpickr/dist/flatpickr.min.css';
 import { 
-  getCurrentSpendingByBudget,
   getProgressColor, 
   getProgressPercentage,
   getEffectiveBudget,
@@ -119,21 +117,21 @@ export default function BudgetCard({
         if (fromFpRef.current) fromFpRef.current.destroy();
         if (toFpRef.current) toFpRef.current.destroy();
       };
-    } catch (e) {
-      console.warn('flatpickr init failed', e);
+    } catch {
+      console.warn('flatpickr init failed');
     }
   }, [fromPickerId, toPickerId, fromDate, toDate, normalizeBudgetDate, viewAll]);
 
   // sync values when state changes
   useEffect(() => {
     if (fromFpRef.current) {
-      try { fromFpRef.current.setDate(fromDate, false); } catch(e) {}
+      try { fromFpRef.current.setDate(fromDate, false); } catch { /* flatpickr may be unavailable during unmount */ }
     }
   }, [fromDate]);
 
   useEffect(() => {
     if (toFpRef.current) {
-      try { toFpRef.current.setDate(toDate, false); } catch(e) {}
+      try { toFpRef.current.setDate(toDate, false); } catch { /* flatpickr may be unavailable during unmount */ }
     }
   }, [toDate]);
 
@@ -313,7 +311,7 @@ export default function BudgetCard({
                         };
                         const fp = flatpickr(dateInput, { ...opts, defaultDate: dateInput.value || null });
                         fp.open();
-                      } catch (e) {
+                      } catch {
                         if (dateInput && dateInput.showPicker) dateInput.showPicker();
                         else dateInput.click();
                       }
@@ -396,7 +394,7 @@ export default function BudgetCard({
                         };
                         const fp = flatpickr(dateInput, { ...opts, defaultDate: dateInput.value || null });
                         fp.open();
-                      } catch (e) {
+                      } catch {
                         if (dateInput && dateInput.showPicker) dateInput.showPicker();
                         else dateInput.click();
                       }

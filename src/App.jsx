@@ -1,4 +1,5 @@
 import 'flatpickr/dist/flatpickr.min.css';
+import flatpickr from 'flatpickr';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTransactions } from './hooks/usetransactions';
 import { useBudgets } from './hooks/usebudgets';
@@ -37,49 +38,15 @@ function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-    if (isMobile && view !== 'explorer') {
-      setMobileCategoryOpen(false);
-    }
-  }, [isMobile, view]);
-
-  useEffect(() => {
-    if (isMobile && view !== 'analysis') {
-      setMobileAnalysisBudgetOpen(false);
-    }
-  }, [isMobile, view]);
-
   const handleMobileNavSelect = (newView) => {
     setView(newView);
     setMobileMainMenuOpen(false);
     setMobileCategoryOpen(false);
   };
 
-  // Get current month in YYYY-MM format
-  const getCurrentMonthString = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    return `${year}-${month}`;
-  };
-
-  // Get today's date in YYYY-MM format
-  const getTodayMonthString = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    return `${year}-${month}`;
-  };
-
   // Fetch transactions and categories used by the advice engine.
   const { transactions, fetchTransactions, categoryStats } = useTransactions();
   const { categories } = useCategories();
-
-  useEffect(() => {
-    if (!selectedCategory && categories.length > 0) {
-      setSelectedCategory(categories[0].category_id);
-    }
-  }, [categories, selectedCategory]);
 
   // Get all budgets before building notification advice.
   const { budgets } = useBudgets();
@@ -248,8 +215,10 @@ function App() {
     if (analysisSelectedBudgetIds.size === 0) {
       // No budgets selected - reset to show all transactions
       console.log('No budgets selected, resetting to oldest/newest');
-      setSelectedStartMonth(oldestMonth || 'all');
-      setSelectedEndMonth(newestMonth || todayMonth);
+      setTimeout(() => {
+        setSelectedStartMonth(oldestMonth || 'all');
+        setSelectedEndMonth(newestMonth || todayMonth);
+      }, 0);
       return;
     }
 
@@ -268,8 +237,10 @@ function App() {
 
     if (relevantTransactions.length === 0) {
       console.log('No transactions for selected budgets, resetting to full range');
-      setSelectedStartMonth(oldestMonth || 'all');
-      setSelectedEndMonth(newestMonth || todayMonth);
+      setTimeout(() => {
+        setSelectedStartMonth(oldestMonth || 'all');
+        setSelectedEndMonth(newestMonth || todayMonth);
+      }, 0);
       return;
     }
 
@@ -296,8 +267,10 @@ function App() {
       const endMonth = formatDate(newestDate);
 
       console.log('Updating dates to:', startMonth, endMonth);
-      setSelectedStartMonth(startMonth);
-      setSelectedEndMonth(endMonth);
+      setTimeout(() => {
+        setSelectedStartMonth(startMonth);
+        setSelectedEndMonth(endMonth);
+      }, 0);
     }
   }, [analysisSelectedBudgetIds, view, budgets, transactions, oldestMonth, newestMonth, todayMonth]);
 
@@ -308,7 +281,7 @@ function App() {
       // Only fetch if more than 5 seconds have passed since last fetch
       if (now - lastFetchTime > 5000) {
         fetchTransactions();
-        setLastFetchTime(now);
+        setTimeout(() => setLastFetchTime(now), 0);
       }
     }
   }, [view, fetchTransactions, lastFetchTime]);
@@ -317,10 +290,11 @@ function App() {
   useEffect(() => {
     if (view !== 'analysis') {
       // Update "from" date to oldest transaction
-      setSelectedStartMonth(oldestMonth || 'all');
-      
-      // Update "to" date to newest transaction
-      setSelectedEndMonth(newestMonth || todayMonth);
+      setTimeout(() => {
+        setSelectedStartMonth(oldestMonth || 'all');
+        // Update "to" date to newest transaction
+        setSelectedEndMonth(newestMonth || todayMonth);
+      }, 0);
     }
   }, [oldestMonth, newestMonth, todayMonth, view]);
 
@@ -382,10 +356,10 @@ function App() {
             try {
               const retryFp = flatpickr(endEl, { ...opts, defaultDate: endEl.value || null });
               if (retryFp && retryFp.altInput) retryFp.altInput.classList.add('analysis-flatpickr-input');
-            } catch (e) {}
+            } catch { /* flatpickr retry is optional */ }
           }, 80);
         }
-      } catch (e) {}
+      } catch { /* flatpickr is optional */ }
 
       // Additional delayed safeguard: ensure both start and end have a flatpickr instance.
       setTimeout(() => {
@@ -410,30 +384,30 @@ function App() {
             });
             if (e && e.altInput) e.altInput.classList.add('analysis-flatpickr-input');
           }
-        } catch (e) {}
+        } catch { /* flatpickr fallback is optional */ }
       }, 120);
 
       return () => {
         if (startFp) startFp.destroy();
         if (endFp) endFp.destroy();
       };
-    } catch (e) {
+    } catch (error) {
       // ignore if flatpickr not available
-      console.warn('flatpickr init failed', e);
+      console.warn('flatpickr init failed', error);
     }
-  }, [view]);
+  }, [view, updateAnalysisMonthFromDate]);
 
   // Keep flatpickr inputs in sync when selected months change
   useEffect(() => {
     const startEl = document.getElementById('start-date');
     if (startEl && startEl._flatpickr) {
       const val = selectedStartMonth === 'all' ? '' : selectedStartMonth + '-01';
-      try { startEl._flatpickr.setDate(val, false); } catch(e) {}
+      try { startEl._flatpickr.setDate(val, false); } catch { /* flatpickr may be unavailable during unmount */ }
     }
     const endEl = document.getElementById('end-date');
     if (endEl && endEl._flatpickr) {
       const val = selectedEndMonth === 'all' ? '' : selectedEndMonth + '-01';
-      try { endEl._flatpickr.setDate(val, false); } catch(e) {}
+      try { endEl._flatpickr.setDate(val, false); } catch { /* flatpickr may be unavailable during unmount */ }
     }
   }, [selectedStartMonth, selectedEndMonth]);
 
@@ -933,7 +907,7 @@ function App() {
                           };
                           const fp = flatpickr(dateInput, { ...opts, defaultDate: dateInput.value || null });
                           fp.open();
-                        } catch (e) {
+                        } catch {
                           if (dateInput && dateInput.showPicker) dateInput.showPicker();
                           else dateInput.click();
                         }
@@ -1044,7 +1018,7 @@ function App() {
                           };
                           const fp = flatpickr(dateInput, { ...opts, defaultDate: dateInput.value || null });
                           fp.open();
-                        } catch (e) {
+                        } catch {
                           if (dateInput && dateInput.showPicker) dateInput.showPicker();
                           else dateInput.click();
                         }

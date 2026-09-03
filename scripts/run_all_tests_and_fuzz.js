@@ -1,11 +1,10 @@
 (async () => {
   const { execSync } = await import('node:child_process');
-  const path = await import('node:path');
   console.log('Running unit tests...');
   try {
-    const out = execSync('node --test src/utils/receiptParser.test.js', { stdio: 'inherit' });
-  } catch (e) {
-    // already displayed
+    execSync('node --test src/utils/receiptParser.test.js', { stdio: 'inherit' });
+  } catch {
+    console.warn('Unit tests failed; continuing with synthetic parser samples.');
   }
 
   console.log('\nRunning synthetic parser samples...');

@@ -70,7 +70,7 @@ export function ScenarioSimulateModal({
     };
     document.addEventListener('keydown', handleTab);
     return () => document.removeEventListener('keydown', handleTab);
-  }, [open, onClose]);
+  }, [open, onCancel]);
 
   // Handlers with useCallback
   // Toggle badge selection
@@ -153,11 +153,6 @@ export function ScenarioSimulateModal({
       return d >= twelveMonthsAgo && tx.type === 'expense';
     });
     
-    const incomeFiltered = relevantTransactions.filter(tx => {
-      const d = new Date(tx.date);
-      return d >= twelveMonthsAgo && tx.type === 'income';
-    });
-    
     // Group expenses by month
     const expenseMonthly = {};
     expenseFiltered.forEach(tx => {
@@ -167,15 +162,6 @@ export function ScenarioSimulateModal({
       expenseMonthly[key] += parseFloat(tx.amount || 0);
     });
     const expenseVals = Object.values(expenseMonthly).sort((a, b) => a - b);
-    
-    const incomeMonthly = {};
-    incomeFiltered.forEach(tx => {
-      const d = new Date(tx.date);
-      const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
-      if (!incomeMonthly[key]) incomeMonthly[key] = 0;
-      incomeMonthly[key] += parseFloat(tx.amount || 0);
-    });
-    const incomeVals = Object.values(incomeMonthly).sort((a, b) => a - b);
     
     // Calculate expense trend
     let expenseTrend = 0;
@@ -188,19 +174,6 @@ export function ScenarioSimulateModal({
       expenseTrend = changes.reduce((a, b) => a + b, 0) / changes.length;
     } else if (expenseVals.length === 1) {
       expenseTrend = -0.05; // Conservative -5% if only 1 month
-    }
-    
-    // Calculate income trend
-    let incomeTrend = 0;
-    if (incomeVals.length >= 2) {
-      let changes = [];
-      for (let i = 1; i < incomeVals.length; ++i) {
-        const change = (incomeVals[i] - incomeVals[i - 1]) / incomeVals[i - 1];
-        changes.push(Math.max(-0.5, Math.min(0.5, change)));
-      }
-      incomeTrend = changes.reduce((a, b) => a + b, 0) / changes.length;
-    } else if (incomeVals.length === 1) {
-      incomeTrend = -0.05; // Conservative -5% if only 1 month
     }
     
     // Smart suggestion: Reduce expenses to stay within budget limits
