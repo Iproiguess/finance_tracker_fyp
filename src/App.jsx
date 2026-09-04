@@ -15,11 +15,20 @@ import { appStyles } from './styles/appStyles';
 import { supabase } from './lib/supabase';
 
 function App() {
+  const dismissedNotificationsStorageKey = 'finance-tracker-dismissed-notifications';
   const [session, setSession] = useState(null);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [view, setView] = useState('explorer'); // 'explorer' | 'budget' | 'analysis'
   const [notificationOpen, setNotificationOpen] = useState(false);
-  const [dismissedNotificationIds, setDismissedNotificationIds] = useState([]);
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState(() => {
+    try {
+      const storedIds = localStorage.getItem(dismissedNotificationsStorageKey);
+      return storedIds ? JSON.parse(storedIds) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [recentlyDismissedNotificationId, setRecentlyDismissedNotificationId] = useState(null);
   const [readNotificationIds, setReadNotificationIds] = useState([]);
   const [activeFeatures, setActiveFeatures] = useState({ forecast: false, simulation: false, heatmap: false }); // toggle states
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
@@ -48,6 +57,12 @@ function App() {
   const { transactions, fetchTransactions, categoryStats } = useTransactions();
   const { categories } = useCategories();
 
+  useEffect(() => {
+    const handleTransactionsUpdated = () => fetchTransactions();
+    window.addEventListener('transactions-updated', handleTransactionsUpdated);
+    return () => window.removeEventListener('transactions-updated', handleTransactionsUpdated);
+  }, [fetchTransactions]);
+
   // Get all budgets before building notification advice.
   const { budgets } = useBudgets();
 
@@ -63,6 +78,10 @@ function App() {
   const unreadCount = useMemo(() => {
     return activeNotifications.filter((item) => !readNotificationIds.includes(item.id)).length;
   }, [activeNotifications, readNotificationIds]);
+
+  useEffect(() => {
+    localStorage.setItem(dismissedNotificationsStorageKey, JSON.stringify(dismissedNotificationIds));
+  }, [dismissedNotificationIds]);
 
   const formatCurrencyValue = useCallback((value) => {
     return new Intl.NumberFormat('en-US', {
@@ -487,7 +506,14 @@ function App() {
   };
 
   const dismissNotification = (id) => {
-    setDismissedNotificationIds((prev) => [...prev, id]);
+    setDismissedNotificationIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setRecentlyDismissedNotificationId(id);
+  };
+
+  const undoDismissNotification = () => {
+    if (!recentlyDismissedNotificationId) return;
+    setDismissedNotificationIds((prev) => prev.filter((id) => id !== recentlyDismissedNotificationId));
+    setRecentlyDismissedNotificationId(null);
   };
 
   return (
@@ -574,7 +600,24 @@ function App() {
 
               {notificationOpen && (
                 <div style={appStyles.notificationPanel}>
+                  <style>{`
+                    .notification-undo-button,
+                    .notification-undo-button:hover,
+                    .notification-undo-button:active,
+                    .notification-undo-button:focus {
+                      outline: none;
+                      box-shadow: none;
+                      background: transparent;
+                      transform: none;
+                    }
+                  `}</style>
                   <div style={appStyles.notificationHeader}>Notifications</div>
+                  {recentlyDismissedNotificationId && (
+                    <div style={appStyles.notificationUndo}>
+                      <span>Notification dismissed</span>
+                      <button type="button" className="notification-undo-button" onClick={undoDismissNotification} style={appStyles.notificationUndoButton}>Undo</button>
+                    </div>
+                  )}
                   {activeNotifications.length === 0 ? (
                     <div style={appStyles.notificationEmpty}>No notifications yet</div>
                   ) : (
@@ -584,10 +627,20 @@ function App() {
                       const itemStyle = isUnread
                         ? isAlternate ? appStyles.notificationItemNewAlternate : appStyles.notificationItemNew
                         : isAlternate ? appStyles.notificationItemAlternate : appStyles.notificationItem;
+                      const textParts = item.context ? item.text.split(item.context) : [item.text];
                       return (
                         <div key={item.id} style={itemStyle}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
-                            <div style={appStyles.notificationText}>{item.text}</div>
+                            <div style={appStyles.notificationText}>
+                              {textParts.map((part, partIndex) => (
+                                <React.Fragment key={`${item.id}-${partIndex}`}>
+                                  {part}
+                                  {partIndex < textParts.length - 1 && (
+                                    <strong style={appStyles.notificationEntity}>{item.context}</strong>
+                                  )}
+                                </React.Fragment>
+                              ))}
+                            </div>
                             <button
                               type="button"
                               onClick={() => dismissNotification(item.id)}

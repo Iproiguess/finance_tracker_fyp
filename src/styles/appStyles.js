@@ -229,6 +229,26 @@ export const appStyles = {
     marginBottom: '10px',
     color: '#23273a',
   },
+  notificationUndo: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '8px',
+    padding: '7px 8px',
+    marginBottom: '6px',
+    borderRadius: '6px',
+    backgroundColor: '#eef6ff',
+    color: '#3b4a5f',
+    fontSize: '11px',
+  },
+  notificationUndoButton: {
+    border: 'none',
+    background: 'transparent',
+    color: '#2563eb',
+    cursor: 'pointer',
+    fontWeight: 700,
+    padding: '2px 4px',
+  },
   notificationItem: {
     padding: '10px 10px 8px 10px',
     borderBottom: '1px solid #d6dadd',
@@ -272,6 +292,13 @@ export const appStyles = {
   notificationText: {
     fontSize: '13px',
     marginBottom: '4px',
+  },
+  notificationEntity: {
+    fontWeight: 800,
+    color: '#111827',
+    backgroundColor: '#fff1a8',
+    borderRadius: '3px',
+    padding: '1px 3px',
   },
   notificationMeta: {
     fontSize: '11px',

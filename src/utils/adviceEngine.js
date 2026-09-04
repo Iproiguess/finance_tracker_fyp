@@ -57,17 +57,66 @@ const isBudgetInCurrentMonth = (budget) => {
   return Number(budget.month) === now.getMonth() + 1 && Number(budget.year) === now.getFullYear();
 };
 
+const transactionBelongsToBudgetPeriod = (transaction, budget) => {
+  const transactionDate = new Date(transaction.date);
+  return Number.isFinite(transactionDate.getTime()) &&
+    transactionDate.getMonth() + 1 === Number(budget.month) &&
+    transactionDate.getFullYear() === Number(budget.year);
+};
+
+const buildLargeExpenseNotifications = (budgets, transactions) => {
+  const notifications = [];
+  const notifiedTransactions = new Set();
+
+  transactions.forEach((transaction) => {
+    const transactionKey = transaction.transaction_id || `${transaction.date}-${transaction.category_id}-${transaction.amount}`;
+    if (transaction.type !== 'expense' || notifiedTransactions.has(transactionKey)) return;
+
+    const amount = Number(transaction.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+
+    const matchingBudget = budgets.find((budget) =>
+      (budget.category_ids || []).includes(transaction.category_id) &&
+      Number(budget.monthly_limit) > 0 &&
+      amount >= Number(budget.monthly_limit)
+    );
+    if (!matchingBudget) return;
+
+    const budgetName = matchingBudget.budget_name || `Budget ${matchingBudget.budget_id}`;
+    notifiedTransactions.add(transactionKey);
+    notifications.push({
+      id: `expense-${transactionKey}-over-budget`,
+      text: `An expense of ${amount.toFixed(2)} meets or exceeds the ${budgetName} limit. Review this transaction and your budget.`,
+      context: budgetName,
+      related: budgetName,
+    });
+  });
+
+  return notifications;
+};
+
 export function buildAdviceNotifications(budgets = [], transactions = []) {
   if (!budgets || budgets.length === 0) return [];
 
-  const currentMonthBudgets = budgets.filter(isBudgetInCurrentMonth);
-  if (currentMonthBudgets.length === 0) return [];
+  const notifications = buildLargeExpenseNotifications(budgets, transactions);
 
-  const notifications = [];
+  const currentMonthBudgets = budgets.filter(isBudgetInCurrentMonth);
+  const budgetsWithActivity = budgets.filter((budget) => {
+    const categoryIds = budget.category_ids || [];
+    return transactions.some((transaction) =>
+      categoryIds.includes(transaction.category_id) &&
+      transactionBelongsToBudgetPeriod(transaction, budget)
+    );
+  });
+  const relevantBudgets = [...new Map(
+    [...currentMonthBudgets, ...budgetsWithActivity].map((budget) => [budget.budget_id, budget])
+  ).values()];
+  if (relevantBudgets.length === 0) return notifications;
+
   const overlapNotifications = buildCategoryOverlapNotifications(currentMonthBudgets);
   notifications.push(...overlapNotifications);
 
-  currentMonthBudgets.forEach((budget) => {
+  relevantBudgets.forEach((budget) => {
     const categoryIds = budget.category_ids || [];
     const budgetMonth = Number(budget.month);
     const budgetYear = Number(budget.year);
@@ -121,7 +170,7 @@ export function buildAdviceNotifications(budgets = [], transactions = []) {
         txnDate.getFullYear() === budget.year;
     });
 
-    if (monthTransactions.length === 0) {
+    if (monthTransactions.length === 0 && isBudgetInCurrentMonth(budget)) {
       notifications.push({
         id: `budget-${budget.budget_id}-no-activity`,
         text: `${budgetName} has no recorded transactions for ${periodLabel}.`,
@@ -142,7 +191,7 @@ export function buildAdviceNotifications(budgets = [], transactions = []) {
     }
 
     const previousExists = getPreviousBudgetExists(budget, budgets);
-    if (!previousExists) {
+    if (!previousExists && isBudgetInCurrentMonth(budget)) {
       notifications.push({
         id: `budget-${budget.budget_id}-new`,
         text: `${budgetName} is new for ${periodLabel}; track spend this period to establish your baseline.`,

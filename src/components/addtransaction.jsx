@@ -18,6 +18,33 @@ const validateAmountInput = (value) => {
 
 const OCR_TIMEOUT_MS = 30000;
 
+const preprocessReceiptImage = async (file) => {
+  const imageUrl = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = imageUrl;
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = () => reject(new Error('Unable to prepare receipt image.'));
+    });
+
+    const maxWidth = 2400;
+    const targetWidth = Math.min(maxWidth, Math.max(image.naturalWidth, 1600));
+    const scale = targetWidth / image.naturalWidth;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(image.naturalWidth * scale);
+    canvas.height = Math.round(image.naturalHeight * scale);
+    const context = canvas.getContext('2d', { alpha: false });
+    context.filter = 'grayscale(1) contrast(1.25)';
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+    return blob ? new File([blob], 'receipt-ocr.jpg', { type: 'image/jpeg' }) : file;
+  } finally {
+    URL.revokeObjectURL(imageUrl);
+  }
+};
+
 export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   const { addTransaction, updateTransaction } = useTransactions();
   const [formData, setFormData] = useState(() => getInitialFormData(editingTransaction));
@@ -42,6 +69,7 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   const initialDateRef = useRef(formData.date);
 
   const recognizeReceipt = async (file) => {
+    const ocrFile = await preprocessReceiptImage(file);
     if (!workerRef.current) {
       workerRef.current = await createWorker('eng');
     }
@@ -49,7 +77,7 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
     let timeoutId;
     try {
       return await Promise.race([
-        workerRef.current.recognize(file),
+        workerRef.current.recognize(ocrFile),
         new Promise((_, reject) => {
           timeoutId = setTimeout(() => {
             const timeoutError = new Error('Receipt reading timed out. Please try again with a clearer photo.');

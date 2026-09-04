@@ -95,6 +95,7 @@ export function useTransactions() {
       return updated;
     });
     setTransactions(prev => [data, ...prev]);
+    window.dispatchEvent(new Event('transactions-updated'));
     return data;
   };
 
@@ -119,6 +120,7 @@ export function useTransactions() {
         prev.map(t => t.transaction_id === id ? updatedTxn : t)
       );
       await fetchCategoryStats();
+      window.dispatchEvent(new Event('transactions-updated'));
       return updatedTxn;
     } catch (err) {
       setError(err.message);
@@ -155,6 +157,7 @@ export function useTransactions() {
           return updated;
         });
       }
+      window.dispatchEvent(new Event('transactions-updated'));
     } catch (err) {
       setError(err.message);
       throw err;
