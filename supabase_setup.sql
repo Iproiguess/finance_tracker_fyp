@@ -176,6 +176,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+REVOKE ALL ON FUNCTION public.update_automation_timestamp() FROM PUBLIC, anon, authenticated;
+
 DROP TRIGGER IF EXISTS trigger_update_automation_timestamp ON public.automations;
 CREATE TRIGGER trigger_update_automation_timestamp
   BEFORE UPDATE ON public.automations
@@ -190,6 +192,8 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
+
+REVOKE ALL ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
@@ -209,6 +213,8 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.refresh_verified() FROM PUBLIC, anon, authenticated;
+
 DROP TRIGGER IF EXISTS on_auth_user_updated ON auth.users;
 CREATE TRIGGER on_auth_user_updated
   AFTER UPDATE OF email_confirmed_at ON auth.users
@@ -227,6 +233,8 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL ON FUNCTION public.create_unset_category() FROM PUBLIC, anon, authenticated;
 
 DROP TRIGGER IF EXISTS on_user_created ON public.users;
 CREATE TRIGGER on_user_created
@@ -248,3 +256,5 @@ AS $$
   WHERE email_confirmed_at IS NULL
     AND created_at < NOW() - INTERVAL '1 day';
 $$;
+
+REVOKE ALL ON FUNCTION public.delete_unverified_users() FROM PUBLIC, anon, authenticated;

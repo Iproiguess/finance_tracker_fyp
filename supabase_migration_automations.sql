@@ -57,6 +57,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SET search_path = public;
 
+REVOKE ALL ON FUNCTION public.update_automation_timestamp() FROM PUBLIC, anon, authenticated;
+
 DROP TRIGGER IF EXISTS trigger_update_automation_timestamp ON public.automations;
 
 CREATE TRIGGER trigger_update_automation_timestamp
