@@ -35,39 +35,114 @@ export const getProgressPercentage = (spent, limit) => {
   return Math.min((spent / limit) * 100, 100);
 };
 
+const normalizeRolloverMode = (budget) => {
+  const mode = budget?.rollover_mode ?? budget?.rolloverMode ?? 'previous-month';
+  return mode === 'full' ? 'full' : 'previous-month';
+};
+
+const sameCategorySet = (a = [], b = []) => {
+  if (a.length !== b.length) return false;
+  return a.every((id) => b.includes(id));
+};
+
+const getBudgetMonthIndex = (budget) => {
+  const month = Number(budget.month);
+  const year = Number(budget.year);
+  if (!Number.isFinite(month) || !Number.isFinite(year)) return Number.NEGATIVE_INFINITY;
+  return (year * 12) + month;
+};
+
+const getCurrentBudgetMonth = () => {
+  const now = new Date();
+  return { month: now.getMonth() + 1, year: now.getFullYear() };
+};
+
+const getPreviousMonth = (month, year) => {
+  return month === 1
+    ? { month: 12, year: year - 1 }
+    : { month: month - 1, year };
+};
+
+const getMatchingPreviousBudgets = (budget, budgets) => {
+  const categoryIds = budget.category_ids || [];
+  const monthIndex = getBudgetMonthIndex(budget);
+
+  return budgets.filter((candidate) => {
+    if (candidate.budget_id === budget.budget_id) return false;
+    if (!candidate || !candidate.category_ids) return false;
+    const candidateMonthIndex = getBudgetMonthIndex(candidate);
+    if (candidateMonthIndex >= monthIndex) return false;
+    if ((candidate.rollover ?? candidate.rollover_enabled) !== (budget.rollover ?? budget.rollover_enabled)) return false;
+    return sameCategorySet(categoryIds, candidate.category_ids || []);
+  });
+};
+
 export const getEffectiveBudget = (budget, budgets, transactions) => {
   const hasRollover = budget.rollover ?? budget.rollover_enabled;
   if (!hasRollover) {
     return budget.monthly_limit;
   }
 
-  const prevMonth = budget.month === 1 ? 12 : budget.month - 1;
-  const prevYear = budget.month === 1 ? budget.year - 1 : budget.year;
-  const categoryIds = budget.category_ids || [];
+  const mode = normalizeRolloverMode(budget);
+  const matchingBudgets = getMatchingPreviousBudgets(budget, budgets);
 
-  const prevBudget = budgets.find(b => {
-    const prevBudgetCategoryIds = b.category_ids || [];
-    return b.month === prevMonth &&
-           b.year === prevYear &&
-           (b.rollover ?? b.rollover_enabled) &&
-           prevBudgetCategoryIds.length === categoryIds.length &&
-           prevBudgetCategoryIds.every(id => categoryIds.includes(id));
-  });
+  if (matchingBudgets.length === 0) {
+    const currentPeriod = getCurrentBudgetMonth();
+    const budgetStartIndex = getBudgetMonthIndex(budget);
+    const currentMonthIndex = getBudgetMonthIndex(currentPeriod);
+    if (budgetStartIndex >= currentMonthIndex) {
+      return Number(budget.monthly_limit || 0);
+    }
 
-  if (!prevBudget) {
+    const previousPeriods = [];
+    let period = getPreviousMonth(currentPeriod.month, currentPeriod.year);
+    let periodIndex = getBudgetMonthIndex(period);
+    while (periodIndex >= budgetStartIndex) {
+      previousPeriods.push(period);
+      period = getPreviousMonth(period.month, period.year);
+      periodIndex = getBudgetMonthIndex(period);
+    }
+
+    const periodsToCarry = mode === 'full' ? previousPeriods : previousPeriods.slice(0, 1);
+    const carryoverAmount = periodsToCarry.reduce((total, previousPeriod) => {
+      const spent = getCurrentSpending(
+        budget.category_ids || [],
+        previousPeriod.month,
+        previousPeriod.year,
+        transactions
+      );
+      return total + Math.max(0, Number(budget.monthly_limit || 0) - spent);
+    }, 0);
+
+    return Number(budget.monthly_limit || 0) + carryoverAmount;
+  }
+
+  const carryoverAmount = matchingBudgets.reduce((total, candidate) => {
+    const remaining = Number(candidate.monthly_limit || 0) - getCurrentSpending(candidate.category_ids || [], Number(candidate.month), Number(candidate.year), transactions);
+    return total + Math.max(0, remaining);
+  }, 0);
+
+  if (mode === 'full') {
+    return Number(budget.monthly_limit || 0) + carryoverAmount;
+  }
+
+  const lastPreviousBudget = matchingBudgets
+    .sort((a, b) => getBudgetMonthIndex(b) - getBudgetMonthIndex(a))[0];
+
+  if (!lastPreviousBudget) {
     return budget.monthly_limit;
   }
 
   const prevSpending = getCurrentSpending(
-    prevBudget.category_ids || [],
-    prevMonth,
-    prevYear,
+    lastPreviousBudget.category_ids || [],
+    Number(lastPreviousBudget.month),
+    Number(lastPreviousBudget.year),
     transactions
   );
-  const prevRemaining = prevBudget.monthly_limit - prevSpending;
+  const prevRemaining = (Number(lastPreviousBudget.monthly_limit || 0) - prevSpending);
   const rolloverAmount = Math.max(0, prevRemaining);
 
-  return budget.monthly_limit + rolloverAmount;
+  return Number(budget.monthly_limit || 0) + rolloverAmount;
 };
 
 export const validateCategoriesExist = (categoryIds, categories) => {
@@ -82,7 +157,8 @@ export const getInitialFormData = () => {
     monthly_limit: '',
     month: today.getMonth() + 1,
     year: today.getFullYear(),
-    rollover: false
+    rollover: false,
+    rollover_mode: 'previous-month'
   };
 };
 
@@ -97,12 +173,14 @@ export const getBudgetPeriodDisplay = (budget) => {
 
 export const getCurrentSpendingByBudget = (budget, transactions) => {
   const categoryIds = budget.category_ids || [];
-  return getCurrentSpending(categoryIds, budget.month, budget.year, transactions);
+  const { month, year } = getCurrentBudgetMonth();
+  return getCurrentSpending(categoryIds, month, year, transactions);
 };
 
 export const getCurrentIncomeByBudget = (budget, transactions) => {
   const categoryIds = budget.category_ids || [];
-  return getCurrentIncome(categoryIds, budget.month, budget.year, transactions);
+  const { month, year } = getCurrentBudgetMonth();
+  return getCurrentIncome(categoryIds, month, year, transactions);
 };
 
 export const getInitialFormDataCustom = () => {

@@ -13,27 +13,37 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
 
   const months = 6;
   const now = new Date();
-  // Calculate rolling window for last 6 months of data
+  // Build a complete six-calendar-month window, including months with no transactions.
   const windowStart = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
-  const last6 = relevantTransactions.filter(tx => {
-    const d = new Date(tx.date);
-    return d >= windowStart && d <= now;
+  const calendarMonths = Array.from({ length: months }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - (months - 1 - index), 1);
+    return {
+      key: `${date.getFullYear()}-${date.getMonth()}`,
+      income: 0,
+      expense: 0,
+    };
+  });
+  const monthTotals = new Map(calendarMonths.map(month => [month.key, month]));
+  let transactionCount = 0;
+
+  relevantTransactions.forEach(tx => {
+    const transactionDate = new Date(tx.date);
+    if (Number.isNaN(transactionDate.getTime()) || transactionDate < windowStart || transactionDate > now) return;
+
+    const month = monthTotals.get(`${transactionDate.getFullYear()}-${transactionDate.getMonth()}`);
+    if (!month) return;
+
+    const amount = Number(tx.amount || 0);
+    if (!Number.isFinite(amount)) return;
+    transactionCount += 1;
+    if (tx.type === 'income') month.income += amount;
+    if (tx.type === 'expense') month.expense += amount;
   });
 
-  const monthKeys = new Set();
-  last6.forEach(tx => {
-    const d = new Date(tx.date);
-    monthKeys.add(`${d.getFullYear()}-${d.getMonth()}`);
-  });
-  const monthsAvailable = Math.max(0, monthKeys.size);
-
-  const income = last6.filter(tx => tx.type === 'income').reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
-  const expense = last6.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
-
-  // Average per month with fallback to prevent division by zero
-  const divisor = monthsAvailable > 0 ? monthsAvailable : 1;
-  const avgMonthlyIncome = income / divisor;
-  const avgMonthlyExpense = expense / divisor;
+  const income = calendarMonths.reduce((sum, month) => sum + month.income, 0);
+  const expense = calendarMonths.reduce((sum, month) => sum + month.expense, 0);
+  const avgMonthlyIncome = income / months;
+  const avgMonthlyExpense = expense / months;
 
   const forecastBalance = (avgMonthlyIncome - avgMonthlyExpense) * months;
   
@@ -127,7 +137,7 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
     }
   }
 
-  if (monthsAvailable === 0) {
+  if (transactionCount === 0) {
     return (
       <div style={{ background: '#fff6e6', color: '#333', borderRadius: 8, padding: '14px 18px', margin: '12px 0', fontSize: 14 }}>
         <div style={{ fontWeight: 700 }}>Forecast unavailable</div>
@@ -139,7 +149,7 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
   return (
     <>
       <div style={{ background: '#e3f6f5', color: '#232323', borderRadius: 8, padding: '14px 18px', margin: '12px 0', fontWeight: 500, fontSize: 15 }}>
-        <div><b>Forecast:</b> Based on the last {monthsAvailable} month{monthsAvailable > 1 ? 's' : ''} of data, your average monthly balance is <b>{formatCurrency(avgMonthlyIncome - avgMonthlyExpense)}</b>. Over 6 months, your projected balance will be <b>{formatCurrency(forecastBalance)}</b>.</div>
+        <div><b>Forecast:</b> Based on the last {months} calendar months, including months with no transactions, your average monthly balance is <b>{formatCurrency(avgMonthlyIncome - avgMonthlyExpense)}</b>. Over 6 months, your projected balance will be <b>{formatCurrency(forecastBalance)}</b>.</div>
         <div style={{ marginTop: 6 }}><b>Recommendation:</b> {recommendation}</div>
       </div>
 

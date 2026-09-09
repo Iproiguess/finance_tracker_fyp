@@ -19,7 +19,8 @@ const formatBudgetFormData = (budget) => ({
   monthly_limit: budget.monthly_limit.toString(),
   month: budget.month,
   year: budget.year,
-  rollover: budget.rollover ?? budget.rollover_enabled ?? false
+  rollover: budget.rollover ?? budget.rollover_enabled ?? false,
+  rollover_mode: budget.rollover_mode ?? (budget.rollover ?? budget.rollover_enabled ? 'previous-month' : 'previous-month')
 });
 
 export default function BudgetPage() {
@@ -84,14 +85,16 @@ export default function BudgetPage() {
         setError('Please enter a valid monthly limit.');
         return;
       }
-      if (!formData.year || isNaN(parseInt(formData.year))) {
-        setError('Please enter a valid year.');
-        return;
-      }
+      const today = new Date();
+      const budgetPeriod = editingBudget
+        ? { month: formData.month, year: formData.year }
+        : { month: today.getMonth() + 1, year: today.getFullYear() };
       const budgetData = {
         ...formData,
+        ...budgetPeriod,
         monthly_limit: parseFloat(formData.monthly_limit),
         budget_name: formData.budget_name || generateBudgetName(formData.category_ids, categories),
+        rollover_mode: formData.rollover ? (formData.rollover_mode || 'previous-month') : 'previous-month',
         user_id: userId
       };
       if (editingBudget) {

@@ -1,6 +1,6 @@
 
 import { styles } from './styles/budgetStyles';
-import { generateBudgetName, MONTH_NAMES } from './utils/budgetUtils';
+import { generateBudgetName } from './utils/budgetUtils';
 
 export default function BudgetForm({
   formData,
@@ -116,37 +116,23 @@ export default function BudgetForm({
             onChange={(e) => onChange({...formData, rollover: e.target.checked})}
             style={styles.checkbox}
           />
-          Enable Rollover (carry over unused budget from previous month)
+          Enable Rollover
         </label>
       </div>
 
-      <div style={styles.formRow}>
+      {formData.rollover && (
         <div style={styles.formGroup}>
-          <label style={styles.label}>Month:</label>
+          <label style={styles.label}>Rollover Mode:</label>
           <select
-            value={formData.month}
-            onChange={(e) => onChange({...formData, month: parseInt(e.target.value)})}
+            value={formData.rollover_mode || 'previous-month'}
+            onChange={(e) => onChange({ ...formData, rollover_mode: e.target.value })}
             style={styles.select}
           >
-            {MONTH_NAMES.map((name, index) => (
-              <option key={index + 1} value={index + 1}>{name}</option>
-            ))}
+            <option value="previous-month">Previous month only</option>
+            <option value="full">Full carry-over</option>
           </select>
         </div>
-
-        <div style={styles.formGroup}>
-          <label style={styles.label}>Year:</label>
-          <input
-            type="number"
-            value={formData.year}
-            onChange={(e) => onChange({...formData, year: parseInt(e.target.value)})}
-            className="no-spinner"
-            style={styles.input}
-            min="2020"
-            max="2030"
-          />
-        </div>
-      </div>
+      )}
 
       <div style={{ display: 'flex', gap: '10px' }}>
         <button 

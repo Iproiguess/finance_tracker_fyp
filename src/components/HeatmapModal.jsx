@@ -189,15 +189,15 @@ export function HeatmapSection({
   const dailySpendingMap = useMemo(() => {
     const map = {};
     
-    const relevantTransactions = simulationResult 
-      ? transactions.filter(tx => 
-          simulationResult.selectedCategoryIds.includes(tx.category_id)
-        )
-      : transactions;
+    const relevantTransactions = transactions.filter(tx => {
+      const transactionYear = new Date(tx.date).getFullYear();
+      const matchesSimulation = !simulationResult || simulationResult.selectedCategoryIds.includes(tx.category_id);
+      return matchesSimulation && transactionYear === selectedYear;
+    });
 
     relevantTransactions.forEach(tx => {
       const date = tx.date;
-      if (!date) return;
+      if (!date || tx.type !== 'expense') return;
       
       if (!map[date]) {
         map[date] = 0;
@@ -206,7 +206,7 @@ export function HeatmapSection({
     });
 
     return map;
-  }, [transactions, simulationResult]);
+  }, [transactions, selectedYear, simulationResult]);
 
   // CHECKPOINT 2 - Color mapping logic
   const maxSpending = useMemo(() => {
@@ -512,7 +512,7 @@ export function HeatmapSection({
         </div>
 
         {/* Individual containers for each selected cell */}
-        {selectedCells.map((cell) => {
+        {selectedCells.map((cell, index) => {
           const reducedAmount = cell.spending * (cell.reductionPercentage / 100);
           const finalAmount = cell.spending * (1 - cell.reductionPercentage / 100);
           
@@ -520,9 +520,9 @@ export function HeatmapSection({
           <div key={cell.dateStr} style={{
             marginBottom: '12px',
             padding: '12px',
-            backgroundColor: '#f9f5e6',
+            backgroundColor: index % 2 === 0 ? '#f9f5e6' : '#eef7ff',
             borderRadius: '6px',
-            border: '1px solid #ffc107',
+            border: `1px solid ${index % 2 === 0 ? '#ffc107' : '#3498db'}`,
           }}>
             {/* Cell header with date and remove button */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>

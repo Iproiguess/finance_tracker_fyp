@@ -147,7 +147,7 @@ export function ScenarioSimulateModal({
     const now = new Date();
     // Look back 12 months maximum for performance (avoid analyzing too much data)
     const twelveMonthsAgo = new Date(now.getFullYear() - 1, now.getMonth(), 1);
-    // Analyze both expense and income trends separately for better recommendations
+    // Analyze expenses from the last 12 months.
     const expenseFiltered = relevantTransactions.filter(tx => {
       const d = new Date(tx.date);
       return d >= twelveMonthsAgo && tx.type === 'expense';
@@ -161,24 +161,22 @@ export function ScenarioSimulateModal({
       if (!expenseMonthly[key]) expenseMonthly[key] = 0;
       expenseMonthly[key] += parseFloat(tx.amount || 0);
     });
-    const expenseVals = Object.values(expenseMonthly).sort((a, b) => a - b);
-    
-    // Calculate expense trend
+    const expenseMonthKeys = Object.keys(expenseMonthly).sort();
+    const expenseValues = expenseMonthKeys.map(key => expenseMonthly[key]);
     let expenseTrend = 0;
-    if (expenseVals.length >= 2) {
-      let changes = [];
-      for (let i = 1; i < expenseVals.length; ++i) {
-        const change = (expenseVals[i] - expenseVals[i - 1]) / expenseVals[i - 1];
+    if (expenseValues.length >= 2) {
+      const changes = [];
+      for (let i = 1; i < expenseValues.length; i += 1) {
+        const previousExpense = expenseValues[i - 1];
+        const change = previousExpense > 0
+          ? (expenseValues[i] - previousExpense) / previousExpense
+          : 0;
         changes.push(Math.max(-0.5, Math.min(0.5, change)));
       }
-      expenseTrend = changes.reduce((a, b) => a + b, 0) / changes.length;
-    } else if (expenseVals.length === 1) {
-      expenseTrend = -0.05; // Conservative -5% if only 1 month
+      expenseTrend = changes.reduce((sum, change) => sum + change, 0) / changes.length;
     }
-    
     // Smart suggestion: Reduce expenses to stay within budget limits
     // Get the latest month's expenses and budget limit
-    const expenseMonthKeys = Object.keys(expenseMonthly).sort();
     const latestMonthKey = expenseMonthKeys[expenseMonthKeys.length - 1];
     const currentMonthExpense = latestMonthKey ? expenseMonthly[latestMonthKey] : 0;
     
@@ -198,7 +196,6 @@ export function ScenarioSimulateModal({
     let suggestionMessage = '';
     
     if (totalBudgetLimit > 0 && currentMonthExpense > 0) {
-      // If current expenses exceed 80% of budget, suggest reduction to get to 75% of budget
       const targetExpense = totalBudgetLimit * 0.75;
       const reductionPercentage = ((currentMonthExpense - targetExpense) / currentMonthExpense) * 100;
       
@@ -207,7 +204,6 @@ export function ScenarioSimulateModal({
         suggestedValue = Math.round(-reductionPercentage);
         suggestionMessage = `Reduce expenses by ${Math.abs(suggestedValue)}% to reach 75% of budget`;
       } else if (expenseTrend > 0.1) {
-        // Expenses trending upward - suggest preventive reduction
         suggestedValue = Math.round(expenseTrend * -100);
         suggestionMessage = `Expenses trending upward. Reduce by ${Math.abs(suggestedValue)}% to stay within budget`;
       } else {
@@ -215,11 +211,10 @@ export function ScenarioSimulateModal({
         suggestedValue = 0;
       }
     } else if (expenseTrend > 0.1) {
-      // No budget limit set, use trend-based suggestion
       suggestedValue = Math.round(expenseTrend * -50);
       suggestionMessage = `Expenses trending upward. Reduce by ${Math.abs(suggestedValue)}%`;
     } else {
-      suggestionMessage = 'Expenses are stable. No reduction needed.';
+      suggestionMessage = 'Your expenses are within budget. Good control!';
       suggestedValue = 0;
     }
     

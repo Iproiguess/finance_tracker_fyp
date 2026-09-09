@@ -36,12 +36,6 @@ export function CategoryExplorer({ selectedCategoryId = null, onCategorySelect =
   const sidebarStyle = isMobile ? { ...styles.sidebar, display: 'none' } : styles.sidebar;
 
   useEffect(() => {
-    if (openCategoryManager && onCategoryManagerHandled) {
-      onCategoryManagerHandled();
-    }
-  }, [openCategoryManager, onCategoryManagerHandled]);
-
-  useEffect(() => {
     if (selectedCategory) {
       fetchTransactions(selectedCategory);
     }
@@ -55,6 +49,9 @@ export function CategoryExplorer({ selectedCategoryId = null, onCategorySelect =
 
   const handleCloseCategoryManager = async () => {
     setShowCategoryManager(false);
+    if (onCategoryManagerHandled) {
+      onCategoryManagerHandled();
+    }
     await fetchCategories();
   };
 

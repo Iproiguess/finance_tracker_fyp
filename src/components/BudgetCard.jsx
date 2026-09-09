@@ -6,8 +6,7 @@ import 'flatpickr/dist/flatpickr.min.css';
 import { 
   getProgressColor, 
   getProgressPercentage,
-  getEffectiveBudget,
-  getBudgetPeriodDisplay
+  getEffectiveBudget
 } from './utils/budgetUtils';
 
 export default function BudgetCard({
@@ -258,7 +257,7 @@ export default function BudgetCard({
       </div>
 
       <div style={styles.budgetDetails}>
-        <p style={styles.period}>Date created: {getBudgetPeriodDisplay(budget)}</p>
+        <p style={styles.period}>Applies every month</p>
         
         <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#f5f8fa', borderRadius: '6px' }}>
           <p style={{ margin: '0 0 8px 0', color: '#000', fontSize: 13, fontWeight: '600', textTransform: 'uppercase' }}>
@@ -512,7 +511,9 @@ export default function BudgetCard({
 
         {(budget.rollover ?? budget.rollover_enabled) && (
           <p style={styles.rolloverNote}>
-            Rollover enabled - unused budget from previous month is carried over
+            {((budget.rollover_mode ?? budget.rolloverMode) === 'full')
+              ? 'Full rollover enabled - all unused budget is carried forward'
+              : 'Rollover enabled - unused budget from previous month is carried over'}
           </p>
         )}
       </div>

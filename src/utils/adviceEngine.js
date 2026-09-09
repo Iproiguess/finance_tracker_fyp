@@ -1,21 +1,11 @@
 import { getCurrentSpending, getEffectiveBudget } from '../components/utils/budgetUtils';
 
-const formatBudgetPeriod = (budget) => {
-  const month = budget.month ? String(budget.month).padStart(2, '0') : '??';
-  const year = budget.year || '????';
-  return `${month}/${year}`;
+const getCurrentBudgetPeriod = () => {
+  const now = new Date();
+  return { month: now.getMonth() + 1, year: now.getFullYear() };
 };
 
-const formatBudgetPeriodText = (budget) => {
-  const period = `for ${formatBudgetPeriod(budget)}`;
-  return `${period} (checked monthly)`;
-};
-
-const arraysHaveSameElements = (a, b) => {
-  if (!Array.isArray(a) || !Array.isArray(b)) return false;
-  if (a.length !== b.length) return false;
-  return a.every((value) => b.includes(value));
-};
+const formatBudgetPeriodText = () => 'for the current month';
 
 const buildCategoryOverlapNotifications = (budgets) => {
   const categoryCounts = {};
@@ -33,35 +23,6 @@ const buildCategoryOverlapNotifications = (budgets) => {
       context: 'Budget overlap',
       related: categoryId,
     }));
-};
-
-const getPreviousBudgetExists = (budget, budgets) => {
-  if (!budget.month || !budget.year) return false;
-  const prevMonth = budget.month === 1 ? 12 : budget.month - 1;
-  const prevYear = budget.month === 1 ? budget.year - 1 : budget.year;
-  const categoryIds = budget.category_ids || [];
-  const rolloverFlag = budget.rollover ?? budget.rollover_enabled;
-
-  return budgets.some((candidate) => {
-    const candidateRollover = candidate.rollover ?? candidate.rollover_enabled;
-    return candidate.budget_id !== budget.budget_id &&
-      candidate.month === prevMonth &&
-      candidate.year === prevYear &&
-      (candidateRollover === rolloverFlag) &&
-      arraysHaveSameElements(candidate.category_ids || [], categoryIds);
-  });
-};
-
-const isBudgetInCurrentMonth = (budget) => {
-  const now = new Date();
-  return Number(budget.month) === now.getMonth() + 1 && Number(budget.year) === now.getFullYear();
-};
-
-const transactionBelongsToBudgetPeriod = (transaction, budget) => {
-  const transactionDate = new Date(transaction.date);
-  return Number.isFinite(transactionDate.getTime()) &&
-    transactionDate.getMonth() + 1 === Number(budget.month) &&
-    transactionDate.getFullYear() === Number(budget.year);
 };
 
 const buildLargeExpenseNotifications = (budgets, transactions) => {
@@ -100,17 +61,8 @@ export function buildAdviceNotifications(budgets = [], transactions = []) {
 
   const notifications = buildLargeExpenseNotifications(budgets, transactions);
 
-  const currentMonthBudgets = budgets.filter(isBudgetInCurrentMonth);
-  const budgetsWithActivity = budgets.filter((budget) => {
-    const categoryIds = budget.category_ids || [];
-    return transactions.some((transaction) =>
-      categoryIds.includes(transaction.category_id) &&
-      transactionBelongsToBudgetPeriod(transaction, budget)
-    );
-  });
-  const relevantBudgets = [...new Map(
-    [...currentMonthBudgets, ...budgetsWithActivity].map((budget) => [budget.budget_id, budget])
-  ).values()];
+  const currentMonthBudgets = budgets.filter((budget) => (budget.category_ids || []).length > 0);
+  const relevantBudgets = currentMonthBudgets;
   if (relevantBudgets.length === 0) return notifications;
 
   const overlapNotifications = buildCategoryOverlapNotifications(currentMonthBudgets);
@@ -118,10 +70,9 @@ export function buildAdviceNotifications(budgets = [], transactions = []) {
 
   relevantBudgets.forEach((budget) => {
     const categoryIds = budget.category_ids || [];
-    const budgetMonth = Number(budget.month);
-    const budgetYear = Number(budget.year);
+    const { month: budgetMonth, year: budgetYear } = getCurrentBudgetPeriod();
 
-    if (!categoryIds.length || !budgetMonth || !budgetYear) {
+    if (!categoryIds.length) {
       return;
     }
 
@@ -133,12 +84,11 @@ export function buildAdviceNotifications(budgets = [], transactions = []) {
 
     const currentSpending = getCurrentSpending(categoryIds, budgetMonth, budgetYear, transactions);
     const effectiveLimit = getEffectiveBudget(normalizedBudget, budgets, transactions);
-    const periodLabel = formatBudgetPeriod(normalizedBudget);
     const budgetName = normalizedBudget.budget_name || `Budget ${normalizedBudget.budget_id}`;
 
     if (effectiveLimit > 0) {
       const percent = currentSpending / effectiveLimit;
-      const periodText = formatBudgetPeriodText(budget);
+      const periodText = formatBudgetPeriodText();
       if (percent >= 1) {
         notifications.push({
           id: `budget-${budget.budget_id}-over`,
@@ -166,14 +116,14 @@ export function buildAdviceNotifications(budgets = [], transactions = []) {
     const monthTransactions = transactions.filter((txn) => {
       const txnDate = new Date(txn.date);
       return categoryIds.includes(txn.category_id) &&
-        txnDate.getMonth() + 1 === budget.month &&
-        txnDate.getFullYear() === budget.year;
+        txnDate.getMonth() + 1 === budgetMonth &&
+        txnDate.getFullYear() === budgetYear;
     });
 
-    if (monthTransactions.length === 0 && isBudgetInCurrentMonth(budget)) {
+    if (monthTransactions.length === 0) {
       notifications.push({
         id: `budget-${budget.budget_id}-no-activity`,
-        text: `${budgetName} has no recorded transactions for ${periodLabel}.`,
+        text: `${budgetName} has no recorded transactions for the current month.`,
         context: budgetName,
         related: budgetName,
       });
@@ -184,21 +134,12 @@ export function buildAdviceNotifications(budgets = [], transactions = []) {
     if (rolloverEnabled && rolloverAmount > 0 && currentSpending < effectiveLimit * 0.7) {
       notifications.push({
         id: `budget-${budget.budget_id}-rollover`,
-        text: `${budgetName} has rolled over ${rolloverAmount.toFixed(2)} available for ${periodLabel}.`,
+        text: `${budgetName} has rolled over ${rolloverAmount.toFixed(2)} available for the current month.`,
         context: budgetName,
         related: budgetName,
       });
     }
 
-    const previousExists = getPreviousBudgetExists(budget, budgets);
-    if (!previousExists && isBudgetInCurrentMonth(budget)) {
-      notifications.push({
-        id: `budget-${budget.budget_id}-new`,
-        text: `${budgetName} is new for ${periodLabel}; track spend this period to establish your baseline.`,
-        context: budgetName,
-        related: budgetName,
-      });
-    }
   });
 
   return notifications;

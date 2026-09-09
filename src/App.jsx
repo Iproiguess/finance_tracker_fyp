@@ -16,6 +16,7 @@ import { supabase } from './lib/supabase';
 
 function App() {
   const dismissedNotificationsStorageKey = 'finance-tracker-dismissed-notifications';
+  const readNotificationsStorageKey = 'finance-tracker-read-notifications';
   const [session, setSession] = useState(null);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [view, setView] = useState('explorer'); // 'explorer' | 'budget' | 'analysis'
@@ -29,7 +30,14 @@ function App() {
     }
   });
   const [recentlyDismissedNotificationId, setRecentlyDismissedNotificationId] = useState(null);
-  const [readNotificationIds, setReadNotificationIds] = useState([]);
+  const [readNotificationIds, setReadNotificationIds] = useState(() => {
+    try {
+      const storedIds = localStorage.getItem(readNotificationsStorageKey);
+      return storedIds ? JSON.parse(storedIds) : [];
+    } catch {
+      return [];
+    }
+  });
   const [activeFeatures, setActiveFeatures] = useState({ forecast: false, simulation: false, heatmap: false }); // toggle states
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   const [mobileMainMenuOpen, setMobileMainMenuOpen] = useState(false);
@@ -82,6 +90,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem(dismissedNotificationsStorageKey, JSON.stringify(dismissedNotificationIds));
   }, [dismissedNotificationIds]);
+
+  useEffect(() => {
+    localStorage.setItem(readNotificationsStorageKey, JSON.stringify(readNotificationIds));
+  }, [readNotificationIds]);
 
   const formatCurrencyValue = useCallback((value) => {
     return new Intl.NumberFormat('en-US', {
@@ -562,12 +574,20 @@ function App() {
               </span>
             </button>
           )}
-          <h1 style={{ ...appStyles.logo, fontSize: isMobile ? '16px' : '18px', lineHeight: isMobile ? '1.2' : '64px' }}>Finance Tracker</h1>
-          {session && !isMobile && (
-            <span style={appStyles.welcomeText}>
-              Welcome, {session.user.user_metadata?.display_name || 'User'}
-            </span>
-          )}
+          <div style={isMobile
+            ? { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: '1px' }
+            : { display: 'flex', alignItems: 'center', gap: '12px' }}
+          >
+            <h1 style={{ ...appStyles.logo, fontSize: isMobile ? '16px' : '18px', lineHeight: isMobile ? '1.2' : '64px' }}>Finance Tracker</h1>
+            {session && (
+              <span style={isMobile
+                ? { ...appStyles.welcomeText, height: 'auto', lineHeight: '1', fontSize: '9px', color: '#667085' }
+                : appStyles.welcomeText}
+              >
+                Welcome, {session.user.user_metadata?.display_name || 'User'}
+              </span>
+            )}
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : 0, marginLeft: 'auto', justifyContent: 'flex-end', position: 'relative' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -623,10 +643,9 @@ function App() {
                   ) : (
                     activeNotifications.map((item, index) => {
                       const isAlternate = index % 2 === 1;
-                      const isUnread = !readNotificationIds.includes(item.id);
-                      const itemStyle = isUnread
-                        ? isAlternate ? appStyles.notificationItemNewAlternate : appStyles.notificationItemNew
-                        : isAlternate ? appStyles.notificationItemAlternate : appStyles.notificationItem;
+                      const itemStyle = {
+                        ...(isAlternate ? appStyles.notificationItemAlternate : appStyles.notificationItem)
+                      };
                       const textParts = item.context ? item.text.split(item.context) : [item.text];
                       return (
                         <div key={item.id} style={itemStyle}>

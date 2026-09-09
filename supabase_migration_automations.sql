@@ -1,5 +1,5 @@
 -- Create automations table for recurring transaction management
-CREATE TABLE public.automations (
+CREATE TABLE IF NOT EXISTS public.automations (
   automation_id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   category_id UUID NOT NULL REFERENCES public.categories(category_id) ON DELETE CASCADE,
@@ -23,26 +23,30 @@ ALTER TABLE public.transactions
 ALTER TABLE public.automations ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Users can SELECT their own automations
+DROP POLICY IF EXISTS "Users can select their own automations" ON public.automations;
 CREATE POLICY "Users can select their own automations" ON public.automations
   FOR SELECT USING (auth.uid() = user_id);
 
 -- Policy: Users can INSERT their own automations
+DROP POLICY IF EXISTS "Users can insert their own automations" ON public.automations;
 CREATE POLICY "Users can insert their own automations" ON public.automations
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- Policy: Users can UPDATE their own automations
+DROP POLICY IF EXISTS "Users can update their own automations" ON public.automations;
 CREATE POLICY "Users can update their own automations" ON public.automations
   FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- Policy: Users can DELETE their own automations
+DROP POLICY IF EXISTS "Users can delete their own automations" ON public.automations;
 CREATE POLICY "Users can delete their own automations" ON public.automations
   FOR DELETE USING (auth.uid() = user_id);
 
 -- Create indexes for better performance
-CREATE INDEX idx_automations_user_id ON public.automations(user_id);
-CREATE INDEX idx_automations_category_id ON public.automations(category_id);
-CREATE INDEX idx_automations_is_active ON public.automations(is_active);
-CREATE INDEX idx_transactions_automation_id ON public.transactions(automation_id);
+CREATE INDEX IF NOT EXISTS idx_automations_user_id ON public.automations(user_id);
+CREATE INDEX IF NOT EXISTS idx_automations_category_id ON public.automations(category_id);
+CREATE INDEX IF NOT EXISTS idx_automations_is_active ON public.automations(is_active);
+CREATE INDEX IF NOT EXISTS idx_transactions_automation_id ON public.transactions(automation_id);
 
 -- Create trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION public.update_automation_timestamp()
@@ -52,6 +56,8 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SET search_path = public;
+
+DROP TRIGGER IF EXISTS trigger_update_automation_timestamp ON public.automations;
 
 CREATE TRIGGER trigger_update_automation_timestamp
   BEFORE UPDATE ON public.automations

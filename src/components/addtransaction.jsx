@@ -182,6 +182,7 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
       } catch (err) {
         if (!cancelled) {
           const message = err && err.message ? err.message : 'Unable to access the camera.';
+          stopCamera();
           setCameraError(message);
         }
       } finally {
