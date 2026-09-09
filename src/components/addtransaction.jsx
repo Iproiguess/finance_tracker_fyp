@@ -17,6 +17,14 @@ const validateAmountInput = (value) => {
 };
 
 const OCR_TIMEOUT_MS = 30000;
+const MAX_RECEIPT_FILE_SIZE = 10 * 1024 * 1024;
+const SUPPORTED_RECEIPT_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif'
+]);
 
 const preprocessReceiptImage = async (file) => {
   const imageUrl = URL.createObjectURL(file);
@@ -64,12 +72,15 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   const cameraContainerRef = useRef(null);
   const cameraStreamRef = useRef(null);
   const workerRef = useRef(null);
+  const currentOcrRef = useRef(null);
+  const receiptInputRef = useRef(null);
   const receiptPreviewRef = useRef('');
   const datePickerRef = useRef(null);
   const initialDateRef = useRef(formData.date);
 
-  const recognizeReceipt = async (file) => {
+  const recognizeReceipt = async (file, request) => {
     const ocrFile = await preprocessReceiptImage(file);
+    if (request.cancelled) throw new Error('Receipt scanning stopped.');
     if (!workerRef.current) {
       workerRef.current = await createWorker('eng');
     }
@@ -78,6 +89,9 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
     try {
       return await Promise.race([
         workerRef.current.recognize(ocrFile),
+        new Promise((_, resolve) => {
+          request.cancel = () => resolve({ cancelled: true });
+        }),
         new Promise((_, reject) => {
           timeoutId = setTimeout(() => {
             const timeoutError = new Error('Receipt reading timed out. Please try again with a clearer photo.');
@@ -94,7 +108,33 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
       throw err;
     } finally {
       clearTimeout(timeoutId);
+      request.cancel = null;
     }
+  };
+
+  const stopReceiptScanning = async () => {
+    if (currentOcrRef.current) {
+      currentOcrRef.current.cancelled = true;
+      currentOcrRef.current.cancel?.();
+      currentOcrRef.current = null;
+    }
+
+    if (workerRef.current) {
+      try { await workerRef.current.terminate(); } catch { /* ignore */ }
+      workerRef.current = null;
+    }
+
+    if (receiptPreviewRef.current) {
+      try { URL.revokeObjectURL(receiptPreviewRef.current); } catch { /* ignore */ }
+      receiptPreviewRef.current = '';
+    }
+    setReceiptPreview('');
+    setReceiptData(null);
+    setSelectedCandidate('');
+    setReceiptProcessing(false);
+    setReceiptMessage('Scanning stopped. Upload another receipt.');
+    if (receiptInputRef.current) receiptInputRef.current.value = '';
+    if (cameraActive) stopCamera();
   };
 
   const stopCamera = () => {
@@ -286,12 +326,19 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   };
 
   const handleReceiptUpload = async (event) => {
+    if (receiptProcessing) return;
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const isSupportedImage = /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name || '') || ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'].includes(file.type);
-    if (!isSupportedImage) {
+    const hasSupportedExtension = /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name || '');
+    const hasSupportedMimeType = SUPPORTED_RECEIPT_MIME_TYPES.has(file.type);
+    const hasUnsupportedMimeType = Boolean(file.type) && !file.type.startsWith('image/');
+    if ((!hasSupportedExtension && !hasSupportedMimeType) || hasUnsupportedMimeType) {
       setReceiptMessage('Please choose a common image file such as JPG, PNG, WEBP, or a phone photo.');
+      return;
+    }
+    if (file.size > MAX_RECEIPT_FILE_SIZE) {
+      setReceiptMessage('Receipt images must be 10 MB or smaller.');
       return;
     }
 
@@ -302,12 +349,16 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
     setReceiptProcessing(true);
     setReceiptMessage('');
     setReceiptData(null);
+    const request = { cancelled: false, cancel: null };
+    currentOcrRef.current = request;
     const previewUrl = URL.createObjectURL(file);
     receiptPreviewRef.current = previewUrl;
     setReceiptPreview(previewUrl);
 
     try {
-      const { data: { text } } = await recognizeReceipt(file);
+      const result = await recognizeReceipt(file, request);
+      if (request.cancelled || result?.cancelled) return;
+      const { data: { text } } = result;
       const parsed = parseReceiptText(text);
 
       if (!parsed.amount && !parsed.description) {
@@ -326,9 +377,14 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
       setReceiptMessage(`Receipt detected: ${parsed.description || 'Unknown merchant'} • ${parsed.amount ? `$${parsed.amount.toFixed(2)}` : 'amount pending'}`);
       setError('');
     } catch (err) {
-      setReceiptMessage(err.message || 'Unable to read the receipt. Please try another image.');
+      if (!request.cancelled) {
+        setReceiptMessage(err.message || 'Unable to read the receipt. Please try another image.');
+      }
     } finally {
-      setReceiptProcessing(false);
+      if (currentOcrRef.current === request) {
+        currentOcrRef.current = null;
+        setReceiptProcessing(false);
+      }
       event.target.value = '';
     }
   };
@@ -438,8 +494,13 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
     receiptPreviewRef.current = previewUrl;
     setReceiptPreview(previewUrl);
 
+    const request = { cancelled: false, cancel: null };
+    currentOcrRef.current = request;
+
     try {
-      const { data: { text } } = await recognizeReceipt(file);
+      const result = await recognizeReceipt(file, request);
+      if (request.cancelled || result?.cancelled) return;
+      const { data: { text } } = result;
       const parsed = parseReceiptText(text);
 
       if (!parsed.amount && !parsed.description) {
@@ -461,11 +522,16 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
       stopCamera();
     } catch (err) {
       console.error('Error processing receipt:', err);
-      setReceiptMessage(err.message || 'Unable to read the receipt. Please try again.');
+      if (!request.cancelled) {
+        setReceiptMessage(err.message || 'Unable to read the receipt. Please try again.');
+      }
       // Also close camera if OCR fails
       stopCamera();
     } finally {
-      setReceiptProcessing(false);
+      if (currentOcrRef.current === request) {
+        currentOcrRef.current = null;
+        setReceiptProcessing(false);
+      }
     }
   };
 
@@ -535,15 +601,37 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
             <div style={styles.field}>
               <label style={styles.label}>Receipt photo</label>
               <div style={styles.receiptButtonRow}>
-                <label style={styles.receiptUploadButton} className="category-explorer-animated-btn">
+                <label
+                  style={{
+                    ...styles.receiptUploadButton,
+                    backgroundColor: receiptProcessing ? '#e5e7eb' : '#edf6ff',
+                    color: receiptProcessing ? '#6b7280' : styles.receiptUploadButton.color,
+                    borderColor: receiptProcessing ? '#cbd5e1' : '#3498db',
+                    opacity: receiptProcessing ? 0.8 : 1,
+                    cursor: receiptProcessing ? 'not-allowed' : 'pointer',
+                    pointerEvents: receiptProcessing ? 'none' : 'auto'
+                  }}
+                  className="category-explorer-animated-btn"
+                >
                   <input
+                    ref={receiptInputRef}
                     type="file"
                     accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
                     onChange={handleReceiptUpload}
+                    disabled={receiptProcessing}
                     style={styles.hiddenInput}
                   />
                   {receiptProcessing ? 'Reading receipt...' : 'Upload receipt'}
                 </label>
+                {receiptProcessing && (
+                  <button
+                    type="button"
+                    onClick={stopReceiptScanning}
+                    style={{ ...styles.scanButton, backgroundColor: '#fff3f3', color: '#dc3545', borderColor: '#dc3545' }}
+                  >
+                    Stop scanning
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleCameraButtonClick}

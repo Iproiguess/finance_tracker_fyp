@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS public.categories (
   category_id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
   category_name TEXT NOT NULL,
-  type TEXT CHECK (type IN ('income', 'expense')),
   color_code TEXT DEFAULT '#007bff'
 );
 
@@ -60,6 +59,9 @@ ALTER TABLE public.budgets
   ADD COLUMN IF NOT EXISTS budget_type TEXT DEFAULT 'monthly',
   ADD COLUMN IF NOT EXISTS start_date DATE,
   ADD COLUMN IF NOT EXISTS end_date DATE;
+
+ALTER TABLE public.categories
+  DROP COLUMN IF EXISTS type;
 
 ALTER TABLE public.transactions
   ADD COLUMN IF NOT EXISTS automation_id UUID;
@@ -227,8 +229,8 @@ BEGIN
     SELECT 1 FROM public.categories
     WHERE user_id = NEW.id AND lower(category_name) = 'unset'
   ) THEN
-    INSERT INTO public.categories (user_id, category_name, type)
-    VALUES (NEW.id, 'Unset', 'expense');
+    INSERT INTO public.categories (user_id, category_name)
+    VALUES (NEW.id, 'Unset');
   END IF;
   RETURN NEW;
 END;

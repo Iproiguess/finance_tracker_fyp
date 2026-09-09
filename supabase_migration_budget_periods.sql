@@ -1,6 +1,10 @@
 -- Migration: Add flexible budget periods support
 -- Adds custom date range capability alongside existing monthly budgets
 
+-- Category type is redundant; transaction.type determines income or expense.
+ALTER TABLE public.categories
+  DROP COLUMN IF EXISTS type;
+
 ALTER TABLE public.budgets
   ADD COLUMN IF NOT EXISTS budget_type TEXT DEFAULT 'monthly' CHECK (budget_type IN ('monthly', 'custom'));
 
