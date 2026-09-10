@@ -27,7 +27,17 @@ export function CategoryDeleteConfirmModal({ isOpen, categoryName, loading, onCo
     confirmBox: { textAlign: 'center', padding: '10px 0' },
     warningIcon: { fontSize: '40px', marginBottom: '10px' },
     title: { margin: '10px 0 15px', fontSize: '18px', fontWeight: 'bold', color: '#333' },
-    description: { fontSize: '14px', color: '#666', marginBottom: '20px' },
+    description: { fontSize: '14px', color: '#666', marginBottom: '12px' },
+    relatedDataWarning: {
+      fontSize: '13px',
+      color: '#9f1239',
+      backgroundColor: '#fff1f2',
+      border: '1px solid #fecdd3',
+      borderRadius: '6px',
+      padding: '10px',
+      marginBottom: '20px',
+      lineHeight: '1.4'
+    },
     confirmActions: { display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' },
     confirmDeleteBtn: {
       padding: '12px',
@@ -58,6 +68,10 @@ export function CategoryDeleteConfirmModal({ isOpen, categoryName, loading, onCo
           <div style={styles.warningIcon}>⚠️</div>
           <h4 style={styles.title}>Delete "{categoryName}"?</h4>
           <p style={styles.description}>This action cannot be undone.</p>
+          <p style={styles.relatedDataWarning}>
+            All transactions and budgets related to this category will also be deleted.
+            Any automations using this category will be deleted as well.
+          </p>
           
           <div style={styles.confirmActions}>
             <button
