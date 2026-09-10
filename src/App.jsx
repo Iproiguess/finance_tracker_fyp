@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import 'flatpickr/dist/flatpickr.min.css';
 import flatpickr from 'flatpickr';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -15,29 +16,12 @@ import { appStyles } from './styles/appStyles';
 import { supabase } from './lib/supabase';
 
 function App() {
-  const dismissedNotificationsStorageKey = 'finance-tracker-dismissed-notifications';
-  const readNotificationsStorageKey = 'finance-tracker-read-notifications';
   const [session, setSession] = useState(null);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [view, setView] = useState('explorer'); // 'explorer' | 'budget' | 'analysis'
   const [notificationOpen, setNotificationOpen] = useState(false);
-  const [dismissedNotificationIds, setDismissedNotificationIds] = useState(() => {
-    try {
-      const storedIds = localStorage.getItem(dismissedNotificationsStorageKey);
-      return storedIds ? JSON.parse(storedIds) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [recentlyDismissedNotificationId, setRecentlyDismissedNotificationId] = useState(null);
-  const [readNotificationIds, setReadNotificationIds] = useState(() => {
-    try {
-      const storedIds = localStorage.getItem(readNotificationsStorageKey);
-      return storedIds ? JSON.parse(storedIds) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState([]);
+  const [readNotificationIds, setReadNotificationIds] = useState([]);
   const [activeFeatures, setActiveFeatures] = useState({ forecast: false, simulation: false, heatmap: false }); // toggle states
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   const [mobileMainMenuOpen, setMobileMainMenuOpen] = useState(false);
@@ -55,21 +39,34 @@ function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    if (isMobile && view !== 'explorer') {
+      setMobileCategoryOpen(false);
+    }
+  }, [isMobile, view]);
+
+  useEffect(() => {
+    if (isMobile && view !== 'analysis') {
+      setMobileAnalysisBudgetOpen(false);
+    }
+  }, [isMobile, view]);
+
   const handleMobileNavSelect = (newView) => {
     setView(newView);
     setMobileMainMenuOpen(false);
     setMobileCategoryOpen(false);
   };
 
+  // Get current month in YYYY-MM format
   // Fetch transactions and categories used by the advice engine.
   const { transactions, fetchTransactions, categoryStats } = useTransactions();
   const { categories } = useCategories();
 
   useEffect(() => {
-    const handleTransactionsUpdated = () => fetchTransactions();
-    window.addEventListener('transactions-updated', handleTransactionsUpdated);
-    return () => window.removeEventListener('transactions-updated', handleTransactionsUpdated);
-  }, [fetchTransactions]);
+    if (!selectedCategory && categories.length > 0) {
+      setSelectedCategory(categories[0].category_id);
+    }
+  }, [categories, selectedCategory]);
 
   // Get all budgets before building notification advice.
   const { budgets } = useBudgets();
@@ -86,14 +83,6 @@ function App() {
   const unreadCount = useMemo(() => {
     return activeNotifications.filter((item) => !readNotificationIds.includes(item.id)).length;
   }, [activeNotifications, readNotificationIds]);
-
-  useEffect(() => {
-    localStorage.setItem(dismissedNotificationsStorageKey, JSON.stringify(dismissedNotificationIds));
-  }, [dismissedNotificationIds]);
-
-  useEffect(() => {
-    localStorage.setItem(readNotificationsStorageKey, JSON.stringify(readNotificationIds));
-  }, [readNotificationIds]);
 
   const formatCurrencyValue = useCallback((value) => {
     return new Intl.NumberFormat('en-US', {
@@ -246,10 +235,8 @@ function App() {
     if (analysisSelectedBudgetIds.size === 0) {
       // No budgets selected - reset to show all transactions
       console.log('No budgets selected, resetting to oldest/newest');
-      setTimeout(() => {
-        setSelectedStartMonth(oldestMonth || 'all');
-        setSelectedEndMonth(newestMonth || todayMonth);
-      }, 0);
+      setSelectedStartMonth(oldestMonth || 'all');
+      setSelectedEndMonth(newestMonth || todayMonth);
       return;
     }
 
@@ -268,10 +255,8 @@ function App() {
 
     if (relevantTransactions.length === 0) {
       console.log('No transactions for selected budgets, resetting to full range');
-      setTimeout(() => {
-        setSelectedStartMonth(oldestMonth || 'all');
-        setSelectedEndMonth(newestMonth || todayMonth);
-      }, 0);
+      setSelectedStartMonth(oldestMonth || 'all');
+      setSelectedEndMonth(newestMonth || todayMonth);
       return;
     }
 
@@ -298,10 +283,8 @@ function App() {
       const endMonth = formatDate(newestDate);
 
       console.log('Updating dates to:', startMonth, endMonth);
-      setTimeout(() => {
-        setSelectedStartMonth(startMonth);
-        setSelectedEndMonth(endMonth);
-      }, 0);
+      setSelectedStartMonth(startMonth);
+      setSelectedEndMonth(endMonth);
     }
   }, [analysisSelectedBudgetIds, view, budgets, transactions, oldestMonth, newestMonth, todayMonth]);
 
@@ -312,7 +295,7 @@ function App() {
       // Only fetch if more than 5 seconds have passed since last fetch
       if (now - lastFetchTime > 5000) {
         fetchTransactions();
-        setTimeout(() => setLastFetchTime(now), 0);
+        setLastFetchTime(now);
       }
     }
   }, [view, fetchTransactions, lastFetchTime]);
@@ -321,11 +304,10 @@ function App() {
   useEffect(() => {
     if (view !== 'analysis') {
       // Update "from" date to oldest transaction
-      setTimeout(() => {
-        setSelectedStartMonth(oldestMonth || 'all');
-        // Update "to" date to newest transaction
-        setSelectedEndMonth(newestMonth || todayMonth);
-      }, 0);
+      setSelectedStartMonth(oldestMonth || 'all');
+      
+      // Update "to" date to newest transaction
+      setSelectedEndMonth(newestMonth || todayMonth);
     }
   }, [oldestMonth, newestMonth, todayMonth, view]);
 
@@ -387,10 +369,10 @@ function App() {
             try {
               const retryFp = flatpickr(endEl, { ...opts, defaultDate: endEl.value || null });
               if (retryFp && retryFp.altInput) retryFp.altInput.classList.add('analysis-flatpickr-input');
-            } catch { /* flatpickr retry is optional */ }
+            } catch { /* Ignore the optional retry if flatpickr is unavailable. */ }
           }, 80);
         }
-      } catch { /* flatpickr is optional */ }
+      } catch { /* Ignore optional flatpickr styling failures. */ }
 
       // Additional delayed safeguard: ensure both start and end have a flatpickr instance.
       setTimeout(() => {
@@ -406,25 +388,25 @@ function App() {
             if (s && s.altInput) s.altInput.classList.add('analysis-flatpickr-input');
           }
           if (endEl && !endEl._flatpickr) {
-            const e = flatpickr(endEl, {
+            const endInstance = flatpickr(endEl, {
               ...opts,
               defaultDate: endEl.value || null,
               onChange: (selectedDates, dateStr) => {
                 updateAnalysisMonthFromDate(dateStr, setSelectedEndMonth);
               }
             });
-            if (e && e.altInput) e.altInput.classList.add('analysis-flatpickr-input');
+            if (endInstance && endInstance.altInput) endInstance.altInput.classList.add('analysis-flatpickr-input');
           }
-        } catch { /* flatpickr fallback is optional */ }
+        } catch { /* Ignore delayed flatpickr initialization failures. */ }
       }, 120);
 
       return () => {
         if (startFp) startFp.destroy();
         if (endFp) endFp.destroy();
       };
-    } catch (error) {
+    } catch (e) {
       // ignore if flatpickr not available
-      console.warn('flatpickr init failed', error);
+      console.warn('flatpickr init failed', e);
     }
   }, [view, updateAnalysisMonthFromDate]);
 
@@ -433,12 +415,12 @@ function App() {
     const startEl = document.getElementById('start-date');
     if (startEl && startEl._flatpickr) {
       const val = selectedStartMonth === 'all' ? '' : selectedStartMonth + '-01';
-      try { startEl._flatpickr.setDate(val, false); } catch { /* flatpickr may be unavailable during unmount */ }
+      try { startEl._flatpickr.setDate(val, false); } catch { /* Ignore unavailable picker updates. */ }
     }
     const endEl = document.getElementById('end-date');
     if (endEl && endEl._flatpickr) {
       const val = selectedEndMonth === 'all' ? '' : selectedEndMonth + '-01';
-      try { endEl._flatpickr.setDate(val, false); } catch { /* flatpickr may be unavailable during unmount */ }
+      try { endEl._flatpickr.setDate(val, false); } catch { /* Ignore unavailable picker updates. */ }
     }
   }, [selectedStartMonth, selectedEndMonth]);
 
@@ -518,14 +500,7 @@ function App() {
   };
 
   const dismissNotification = (id) => {
-    setDismissedNotificationIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-    setRecentlyDismissedNotificationId(id);
-  };
-
-  const undoDismissNotification = () => {
-    if (!recentlyDismissedNotificationId) return;
-    setDismissedNotificationIds((prev) => prev.filter((id) => id !== recentlyDismissedNotificationId));
-    setRecentlyDismissedNotificationId(null);
+    setDismissedNotificationIds((prev) => [...prev, id]);
   };
 
   return (
@@ -574,20 +549,12 @@ function App() {
               </span>
             </button>
           )}
-          <div style={isMobile
-            ? { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: '1px' }
-            : { display: 'flex', alignItems: 'center', gap: '12px' }}
-          >
-            <h1 style={{ ...appStyles.logo, fontSize: isMobile ? '16px' : '18px', lineHeight: isMobile ? '1.2' : '64px' }}>Finance Tracker</h1>
-            {session && (
-              <span style={isMobile
-                ? { ...appStyles.welcomeText, height: 'auto', lineHeight: '1', fontSize: '9px', color: '#667085' }
-                : appStyles.welcomeText}
-              >
-                Welcome, {session.user.user_metadata?.display_name || 'User'}
-              </span>
-            )}
-          </div>
+          <h1 style={{ ...appStyles.logo, fontSize: isMobile ? '16px' : '18px', lineHeight: isMobile ? '1.2' : '64px' }}>Finance Tracker</h1>
+          {session && !isMobile && (
+            <span style={appStyles.welcomeText}>
+              Welcome, {session.user.user_metadata?.display_name || 'User'}
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : 0, marginLeft: 'auto', justifyContent: 'flex-end', position: 'relative' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -620,46 +587,20 @@ function App() {
 
               {notificationOpen && (
                 <div style={appStyles.notificationPanel}>
-                  <style>{`
-                    .notification-undo-button,
-                    .notification-undo-button:hover,
-                    .notification-undo-button:active,
-                    .notification-undo-button:focus {
-                      outline: none;
-                      box-shadow: none;
-                      background: transparent;
-                      transform: none;
-                    }
-                  `}</style>
                   <div style={appStyles.notificationHeader}>Notifications</div>
-                  {recentlyDismissedNotificationId && (
-                    <div style={appStyles.notificationUndo}>
-                      <span>Notification dismissed</span>
-                      <button type="button" className="notification-undo-button" onClick={undoDismissNotification} style={appStyles.notificationUndoButton}>Undo</button>
-                    </div>
-                  )}
                   {activeNotifications.length === 0 ? (
                     <div style={appStyles.notificationEmpty}>No notifications yet</div>
                   ) : (
                     activeNotifications.map((item, index) => {
                       const isAlternate = index % 2 === 1;
-                      const itemStyle = {
-                        ...(isAlternate ? appStyles.notificationItemAlternate : appStyles.notificationItem)
-                      };
-                      const textParts = item.context ? item.text.split(item.context) : [item.text];
+                      const isUnread = !readNotificationIds.includes(item.id);
+                      const itemStyle = isUnread
+                        ? isAlternate ? appStyles.notificationItemNewAlternate : appStyles.notificationItemNew
+                        : isAlternate ? appStyles.notificationItemAlternate : appStyles.notificationItem;
                       return (
                         <div key={item.id} style={itemStyle}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
-                            <div style={appStyles.notificationText}>
-                              {textParts.map((part, partIndex) => (
-                                <React.Fragment key={`${item.id}-${partIndex}`}>
-                                  {part}
-                                  {partIndex < textParts.length - 1 && (
-                                    <strong style={appStyles.notificationEntity}>{item.context}</strong>
-                                  )}
-                                </React.Fragment>
-                              ))}
-                            </div>
+                            <div style={appStyles.notificationText}>{item.text}</div>
                             <button
                               type="button"
                               onClick={() => dismissNotification(item.id)}

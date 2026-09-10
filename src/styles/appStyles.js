@@ -132,7 +132,7 @@ export const appStyles = {
     outline: 'none',
     width: '100%',
     minWidth: 0,
-    minHeight: 'calc(100vh - 64px)',
+    minHeight: 0,
     letterSpacing: '0.2px',
     display: 'block',
     transition: 'all 0.18s cubic-bezier(.4,0,.2,1)',
