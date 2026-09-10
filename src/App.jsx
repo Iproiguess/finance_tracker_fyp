@@ -549,12 +549,14 @@ function App() {
               </span>
             </button>
           )}
-          <h1 style={{ ...appStyles.logo, fontSize: isMobile ? '16px' : '18px', lineHeight: isMobile ? '1.2' : '64px' }}>Finance Tracker</h1>
-          {session && !isMobile && (
-            <span style={appStyles.welcomeText}>
-              Welcome, {session.user.user_metadata?.display_name || 'User'}
-            </span>
-          )}
+          <div style={isMobile ? { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1px' } : { display: 'contents' }}>
+            <h1 style={{ ...appStyles.logo, fontSize: isMobile ? '16px' : '18px', lineHeight: isMobile ? '1.2' : '64px' }}>Finance Tracker</h1>
+            {session && (
+              <span style={isMobile ? { ...appStyles.welcomeText, fontSize: '10px', lineHeight: '1.2' } : appStyles.welcomeText}>
+                Welcome, {session.user.user_metadata?.display_name || 'User'}
+              </span>
+            )}
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : 0, marginLeft: 'auto', justifyContent: 'flex-end', position: 'relative' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
