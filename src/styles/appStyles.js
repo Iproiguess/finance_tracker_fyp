@@ -163,6 +163,7 @@ export const appStyles = {
     display: 'flex',
     alignItems: 'center',
     marginRight: '12px',
+    zIndex: 1200,
   },
   notificationBtn: {
     border: 'none',
@@ -221,7 +222,7 @@ export const appStyles = {
     maxHeight: '360px',
     overflowY: 'auto',
     padding: '10px',
-    zIndex: 100,
+    zIndex: 1201,
   },
   notificationHeader: {
     fontSize: '14px',
