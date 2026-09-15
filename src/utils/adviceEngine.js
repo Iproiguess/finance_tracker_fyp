@@ -7,8 +7,9 @@ const getCurrentBudgetPeriod = () => {
 
 const formatBudgetPeriodText = () => 'for the current month';
 
-const buildCategoryOverlapNotifications = (budgets) => {
+const buildCategoryOverlapNotifications = (budgets, categories) => {
   const categoryCounts = {};
+  const categoryNames = new Map((categories || []).map(category => [category.category_id, category.category_name]));
   budgets.forEach((budget) => {
     (budget.category_ids || []).forEach((categoryId) => {
       categoryCounts[categoryId] = (categoryCounts[categoryId] || 0) + 1;
@@ -19,7 +20,7 @@ const buildCategoryOverlapNotifications = (budgets) => {
     .filter(([, count]) => count > 1)
     .map(([categoryId]) => ({
       id: `category-overlap-${categoryId}`,
-      text: `Category ${categoryId} appears in multiple budgets. This expense will count toward each budget that includes it.`,
+      text: `Category ${categoryNames.get(categoryId) || categoryId} appears in multiple budgets. This expense will count toward each budget that includes it.`,
       context: 'Budget overlap',
       related: categoryId,
     }));
@@ -56,7 +57,7 @@ const buildLargeExpenseNotifications = (budgets, transactions) => {
   return notifications;
 };
 
-export function buildAdviceNotifications(budgets = [], transactions = []) {
+export function buildAdviceNotifications(budgets = [], transactions = [], categories = []) {
   if (!budgets || budgets.length === 0) return [];
 
   const notifications = buildLargeExpenseNotifications(budgets, transactions);
@@ -65,7 +66,7 @@ export function buildAdviceNotifications(budgets = [], transactions = []) {
   const relevantBudgets = currentMonthBudgets;
   if (relevantBudgets.length === 0) return notifications;
 
-  const overlapNotifications = buildCategoryOverlapNotifications(currentMonthBudgets);
+  const overlapNotifications = buildCategoryOverlapNotifications(currentMonthBudgets, categories);
   notifications.push(...overlapNotifications);
 
   relevantBudgets.forEach((budget) => {
