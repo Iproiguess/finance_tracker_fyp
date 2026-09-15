@@ -29,8 +29,8 @@ const TrendChartTooltip = ({ active, payload }) => {
   return null;
 };
 
-export function Analysis({ activeFeatures = { forecast: false, simulation: false, heatmap: false }, setActiveFeatures = () => {}, selectedStartMonth = 'all', selectedEndMonth, fetchTransactions, handleBudgetsChanged = () => {}, isMobile: isMobileProp = false, mobileBudgetSidebarOpen = false, onMobileBudgetSidebarToggle = () => {} }) {
-  const { budgets, loading: budgetsLoading } = useBudgets();
+export function Analysis({ activeFeatures = { forecast: false, simulation: false, heatmap: false }, setActiveFeatures = () => {}, selectedStartMonth = 'all', selectedEndMonth, fetchTransactions, handleBudgetsChanged = () => {}, budgetRefreshKey = 0, isMobile: isMobileProp = false, mobileBudgetSidebarOpen = false, onMobileBudgetSidebarToggle = () => {} }) {
+  const { budgets, loading: budgetsLoading, fetchBudgets } = useBudgets();
   const { transactions, loading: transactionsLoading } = useTransactions();
   const { categories, loading: categoriesLoading } = useCategories();
 
@@ -54,6 +54,10 @@ export function Analysis({ activeFeatures = { forecast: false, simulation: false
   const [lastBudgetFetchTime, setLastBudgetFetchTime] = React.useState(0);
   const [viewportIsMobile, setViewportIsMobile] = React.useState(() => window.innerWidth <= 768);
   const simulationInitializedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    fetchBudgets();
+  }, [budgetRefreshKey, fetchBudgets]);
 
   React.useEffect(() => {
     const handleResize = () => setViewportIsMobile(window.innerWidth <= 768);

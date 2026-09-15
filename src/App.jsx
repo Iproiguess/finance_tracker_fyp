@@ -30,6 +30,7 @@ function App() {
   const [mobileOpenCategoryManager, setMobileOpenCategoryManager] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [hoveredMobileMenuItem, setHoveredMobileMenuItem] = useState(null);
+  const [budgetRefreshKey, setBudgetRefreshKey] = useState(0);
 
   const isMobile = viewportWidth <= 768;
 
@@ -69,7 +70,12 @@ function App() {
   }, [categories, selectedCategory]);
 
   // Get all budgets before building notification advice.
-  const { budgets } = useBudgets();
+  const { budgets, fetchBudgets } = useBudgets();
+
+  const handleBudgetsChanged = useCallback(() => {
+    fetchBudgets();
+    setBudgetRefreshKey(previousKey => previousKey + 1);
+  }, [fetchBudgets]);
 
   // Build advice-based notifications from budgets, transactions, and categories.
   const derivedNotifications = useMemo(() => {
@@ -1116,7 +1122,7 @@ function App() {
         )}
 
         {view === 'budget' && (
-          <BudgetPage />
+          <BudgetPage onBudgetsChanged={handleBudgetsChanged} />
         )}
 
         {view === 'analysis' && (
@@ -1127,6 +1133,7 @@ function App() {
             selectedEndMonth={selectedEndMonth}
             fetchTransactions={fetchTransactions}
             handleBudgetsChanged={handleAnalysisBudgetsChanged}
+            budgetRefreshKey={budgetRefreshKey}
             isMobile={isMobile}
             mobileBudgetSidebarOpen={mobileAnalysisBudgetOpen}
             onMobileBudgetSidebarToggle={setMobileAnalysisBudgetOpen}

@@ -23,7 +23,7 @@ const formatBudgetFormData = (budget) => ({
   rollover_mode: budget.rollover_mode ?? (budget.rollover ?? budget.rollover_enabled ? 'previous-month' : 'previous-month')
 });
 
-export default function BudgetPage() {
+export default function BudgetPage({ onBudgetsChanged = () => {} }) {
   const { budgets, loading: budgetsLoading, error: budgetsError, addBudget, updateBudget, deleteBudget } = useBudgets();
   const { categories, loading: categoriesLoading } = useCategories();
   const { transactions } = useTransactions();
@@ -102,6 +102,7 @@ export default function BudgetPage() {
       } else {
         await addBudget(budgetData);
       }
+      onBudgetsChanged();
       resetForm();
     } catch (err) {
       setError('Error saving budget: ' + (err.message || err));

@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import flatpickr from 'flatpickr';
+import 'flatpickr/dist/flatpickr.min.css';
 import { useAutomations } from '../hooks/useAutomations';
 import { useCategories } from '../hooks/usecategories';
 import { formatCurrency } from './utils/transactionUtils';
@@ -13,7 +15,7 @@ import { formatDateToDDMMYYYY } from '../utils/dateFormatter';
  * - Manage existing automations (activate, edit, delete)
  */
 export function AutomationModal({ open, onClose, onAutomationCreated = () => {} }) {
-  const { automations, loading: autoLoading, createAutomation, toggleAutomationStatus, deleteAutomation } = useAutomations();
+  const { automations, loading: autoLoading, createAutomation, backfillAutomation, toggleAutomationStatus, deleteAutomation } = useAutomations();
   const { categories } = useCategories();
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
@@ -30,9 +32,11 @@ export function AutomationModal({ open, onClose, onAutomationCreated = () => {} 
   });
 
   const [addNow, setAddNow] = useState(true);
+  const [backfill, setBackfill] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const modalRef = useRef(null);
+  const startDatePickerRef = useRef(null);
 
   // Reset form fields only (preserves success/error messages)
   const resetFormFields = useCallback(() => {
@@ -47,6 +51,7 @@ export function AutomationModal({ open, onClose, onAutomationCreated = () => {} 
       is_active: true,
     });
     setAddNow(true);
+    setBackfill(false);
   }, []);
 
   // Handle form input changes
@@ -84,7 +89,7 @@ export function AutomationModal({ open, onClose, onAutomationCreated = () => {} 
     if (!validateForm()) return;
 
     try {
-      await createAutomation({
+      const automationData = {
         description: formData.description,
         amount: formData.amount,
         category_id: formData.category_id,
@@ -92,11 +97,18 @@ export function AutomationModal({ open, onClose, onAutomationCreated = () => {} 
         start_date: formData.start_date,
         frequency: formData.frequency,
         frequency_days: formData.frequency === 'custom' ? formData.frequency_days : null,
-      }, addNow);
+      };
+      const createdAutomation = await createAutomation(automationData, addNow);
+      let backfilledCount = 0;
+      if (backfill && createdAutomation) {
+        backfilledCount = await backfillAutomation(createdAutomation.automation_id, automationData);
+      }
 
       // Determine success message based on start_date and addNow
       let successMessage = 'Automation created successfully!';
-      if (addNow) {
+      if (backfilledCount > 0) {
+        successMessage = `Automation created with ${backfilledCount} backfilled transaction${backfilledCount === 1 ? '' : 's'}.`;
+      } else if (addNow) {
         const today = new Date().toISOString().split('T')[0];
         if (today >= formData.start_date) {
           successMessage = 'Automation created and transaction added!';
@@ -116,11 +128,14 @@ export function AutomationModal({ open, onClose, onAutomationCreated = () => {} 
   };
 
   // Handle automation deletion
-  const handleDelete = async (automationId) => {
+  const handleDelete = async (automationId, deleteTransactions = false) => {
     try {
-      await deleteAutomation(automationId);
+      await deleteAutomation(automationId, deleteTransactions);
       setDeleteConfirmId(null);
-      setSuccess('Automation deleted successfully');
+      onAutomationCreated();
+      setSuccess(deleteTransactions
+        ? 'Automation and its transactions deleted successfully'
+        : 'Automation deleted successfully');
       setTimeout(() => setSuccess(''), 2000);
     } catch (err) {
       setError(err.message);
@@ -154,6 +169,30 @@ export function AutomationModal({ open, onClose, onAutomationCreated = () => {} 
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (!open || !startDatePickerRef.current) return undefined;
+
+    const datePicker = flatpickr(startDatePickerRef.current, {
+      altInput: true,
+      altFormat: 'd/m/Y',
+      dateFormat: 'Y-m-d',
+      altInputClass: 'automation-start-date-input',
+      allowInput: true,
+      defaultDate: startDatePickerRef.current.value || null,
+      onChange: (_selectedDates, dateValue) => {
+        setFormData(prev => ({ ...prev, start_date: dateValue }));
+      }
+    });
+
+    return () => datePicker.destroy();
+  }, [open]);
+
+  useEffect(() => {
+    if (startDatePickerRef.current?._flatpickr && formData.start_date) {
+      startDatePickerRef.current._flatpickr.setDate(formData.start_date, false);
+    }
+  }, [formData.start_date]);
+
   if (!open) return null;
 
   const getCategoryName = (categoryId) => {
@@ -165,9 +204,24 @@ export function AutomationModal({ open, onClose, onAutomationCreated = () => {} 
       <style>{`
         .automation-modal-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
         .automation-modal-scrollbar::-webkit-scrollbar { display: none; }
+        .automation-modal .automation-start-date-input {
+          display: block !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
+          padding: 10px 12px !important;
+          border: 1px solid #d3d6de !important;
+          border-radius: 6px !important;
+          font-size: 14px !important;
+          font-family: inherit !important;
+          color: #fff !important;
+          background: #3b3b3b !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+          pointer-events: auto !important;
+        }
       `}</style>
       <div
-        className="automation-modal-scrollbar"
+        className="automation-modal automation-modal-scrollbar"
         style={automationStyles.modal}
         ref={modalRef}
         onClick={(e) => e.stopPropagation()}
@@ -264,10 +318,12 @@ export function AutomationModal({ open, onClose, onAutomationCreated = () => {} 
               <div style={automationStyles.formGroup}>
                 <label style={automationStyles.label}>Start Date</label>
                 <input
+                  ref={startDatePickerRef}
                   type="date"
                   name="start_date"
                   value={formData.start_date}
                   onChange={handleInputChange}
+                  aria-label="Automation start date"
                   style={automationStyles.input}
                 />
               </div>
@@ -330,6 +386,15 @@ export function AutomationModal({ open, onClose, onAutomationCreated = () => {} 
                   style={{ marginRight: '8px' }}
                 />
                 Add transaction to list now
+              </label>
+              <label style={automationStyles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={backfill}
+                  onChange={(e) => setBackfill(e.target.checked)}
+                  style={{ marginRight: '8px' }}
+                />
+                Backfill transactions from the start date until today
               </label>
             </div>
 
@@ -432,6 +497,9 @@ export function AutomationModal({ open, onClose, onAutomationCreated = () => {} 
         <DeleteTransactionConfirmModal
           title="Delete Automation?"
           onConfirm={() => handleDelete(deleteConfirmId)}
+          confirmLabel="Delete automation only"
+          secondaryLabel="Delete automation and transactions"
+          onSecondaryConfirm={() => handleDelete(deleteConfirmId, true)}
           onCancel={() => setDeleteConfirmId(null)}
         />
       )}

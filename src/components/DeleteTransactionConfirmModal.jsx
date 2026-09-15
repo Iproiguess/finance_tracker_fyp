@@ -1,6 +1,13 @@
 import { styles } from './utils/categoryExplorerUtils';
 
-export function DeleteTransactionConfirmModal({ onConfirm, onCancel, title = 'Delete Transaction?' }) {
+export function DeleteTransactionConfirmModal({
+  onConfirm,
+  onCancel,
+  title = 'Delete Transaction?',
+  confirmLabel = 'Yes, Delete',
+  secondaryLabel,
+  onSecondaryConfirm,
+}) {
   return (
     <div style={styles.overlay} onClick={onCancel}>
       <div 
@@ -31,7 +38,31 @@ export function DeleteTransactionConfirmModal({ onConfirm, onCancel, title = 'De
               e.currentTarget.style.boxShadow = 'none';
             }}
             onClick={onConfirm}
-          >Yes, Delete</button>
+          >{confirmLabel}</button>
+          {secondaryLabel && onSecondaryConfirm && (
+            <button
+              style={{
+                ...styles.detailsDeleteBtn,
+                padding: '14px',
+                fontSize: '15px',
+                fontWeight: '600',
+                borderRadius: '8px',
+                transition: 'all 0.2s ease',
+                backgroundColor: '#e74c3c',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#a93226';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(127, 29, 29, 0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#e74c3c';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+              onClick={onSecondaryConfirm}
+            >{secondaryLabel}</button>
+          )}
           <button 
             style={{ 
               backgroundColor: '#eee',

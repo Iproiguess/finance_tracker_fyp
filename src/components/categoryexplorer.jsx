@@ -172,7 +172,7 @@ export function CategoryExplorer({ selectedCategoryId = null, onCategorySelect =
                           <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>Income & expense</div>
                         </div>
                       </div>
-                      {isActive && <span style={{ padding: '4px 8px', borderRadius: '999px', background: 'rgba(125, 211, 252, 0.16)', color: '#7dd3fc', fontSize: '11px', fontWeight: 700 }}>Active</span>}
+                      {isActive && <span style={{ padding: '4px 8px', borderRadius: '999px', background: 'rgba(125, 211, 252, 0.16)', color: '#7dd3fc', fontSize: '11px', fontWeight: 700 }}>Selected</span>}
                     </div>
                     <div style={styles.categoryItemStats}>
                       <span style={{ padding: '4px 8px', borderRadius: '999px', background: 'rgba(34,197,94,0.16)', color: '#4ade80', fontWeight: 700 }}>↑ {formatCurrency(stats.income)}</span>

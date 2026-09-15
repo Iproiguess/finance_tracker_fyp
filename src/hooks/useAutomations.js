@@ -43,6 +43,52 @@ const getNextAutomationDate = (date, automation) => {
   return nextDate;
 };
 
+const getAutomationDates = (automation, startDateString, endDateString) => {
+  const dates = [];
+  const currentDate = parseLocalDate(startDateString);
+  const endDate = parseLocalDate(endDateString);
+
+  while (currentDate <= endDate) {
+    dates.push(formatLocalDate(currentDate));
+    const nextDate = getNextAutomationDate(currentDate, automation);
+    if (!nextDate) break;
+    currentDate.setTime(nextDate.getTime());
+  }
+
+  return dates;
+};
+
+const insertMissingAutomationTransactions = async (automationId, automation, transactionDates, userId) => {
+  if (transactionDates.length === 0) return 0;
+
+  const { data: existingTransactions, error: existingError } = await supabase
+    .from('transactions')
+    .select('date')
+    .eq('automation_id', automationId)
+    .in('date', transactionDates);
+  if (existingError) throw existingError;
+
+  const existingDates = new Set((existingTransactions || []).map(transaction => transaction.date));
+  const transactionsToInsert = transactionDates
+    .filter(date => !existingDates.has(date))
+    .map(date => ({
+      description: automation.description,
+      amount: parseFloat(automation.amount),
+      category_id: automation.category_id,
+      type: automation.type || 'expense',
+      date,
+      automation_id: automationId,
+      user_id: userId,
+    }));
+
+  if (transactionsToInsert.length > 0) {
+    const { error: insertError } = await supabase.from('transactions').insert(transactionsToInsert);
+    if (insertError) throw insertError;
+  }
+
+  return transactionsToInsert.length;
+};
+
 /**
  * Custom hook for managing automated transactions
  * 
@@ -126,14 +172,10 @@ export function useAutomations() {
         .select();
       if (error) throw error;
 
-      // If addNow is true, only insert a transaction if today >= start_date
+      // If addNow is true, insert the first due transaction immediately.
       if (addNow && data && data.length > 0) {
         // Get today's date in local timezone (not UTC - see insertAutomatedTransaction for why)
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const today = `${year}-${month}-${day}`;
+        const today = formatLocalDate(new Date());
         if (today >= automationData.start_date) {
           await insertAutomatedTransactionRef.current(data[0].automation_id, automationData);
         }
@@ -141,6 +183,30 @@ export function useAutomations() {
 
       await fetchAutomations();
       return data?.[0];
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [fetchAutomations]);
+
+  const backfillAutomation = useCallback(async (automationId, automationData) => {
+    setError(null);
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) throw new Error('User not authenticated');
+
+      const today = formatLocalDate(new Date());
+      if (automationData.start_date > today) return 0;
+
+      const transactionDates = getAutomationDates(automationData, automationData.start_date, today);
+      const insertedCount = await insertMissingAutomationTransactions(automationId, automationData, transactionDates, user.id);
+
+      await supabase
+        .from('automations')
+        .update({ last_executed: new Date().toISOString() })
+        .eq('automation_id', automationId);
+      await fetchAutomations();
+      return insertedCount;
     } catch (err) {
       setError(err.message);
       throw err;
@@ -205,11 +271,7 @@ export function useAutomations() {
 
       // Calculate local date (not UTC) to prevent timezone bugs
       // In US timezones (behind UTC), ISO string would show yesterday
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const localDate = `${year}-${month}-${day}`;
+      const localDate = formatLocalDate(new Date());
 
       const { data, error } = await supabase
         .from('transactions')
@@ -276,11 +338,7 @@ export function useAutomations() {
         }
         
         // Get today's date in local timezone (not UTC)
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const today = `${year}-${month}-${day}`;
+        const today = formatLocalDate(new Date());
         
         console.log(`[AUTOMATION] Starting execution at ${new Date().toLocaleString()} | Today: ${today}`);
         
@@ -363,54 +421,16 @@ export function useAutomations() {
             
             console.log(`[AUTOMATION] Date range: ${formatLocalDate(startDate)} → ${today}`);
             
-            const endDate = parseLocalDate(today);
-            
-            // Generate array of dates to create transactions for based on frequency
-            const transactionDates = [];
-            
-            const currentDate = new Date(startDate);
-            while (currentDate <= endDate) {
-              transactionDates.push(formatLocalDate(currentDate));
-              const nextDate = getNextAutomationDate(currentDate, automation);
-              if (!nextDate) break;
-              currentDate.setTime(nextDate.getTime());
-            }
+            const transactionDates = getAutomationDates(automation, formatLocalDate(startDate), today);
             
             console.log(`[AUTOMATION] Generated ${transactionDates.length} transaction dates: ${transactionDates.slice(0, 3).join(', ')}${transactionDates.length > 3 ? '...' : ''}`);
             
-            // Avoid inserting duplicates by checking existing automation transactions first
-            const { data: existingTransactions, error: existingError } = await supabase
-              .from('transactions')
-              .select('transaction_id, date')
-              .eq('automation_id', automation.automation_id)
-              .in('date', transactionDates);
+            const insertedCount = await insertMissingAutomationTransactions(automation.automation_id, automation, transactionDates, txUser.id);
 
-            if (existingError) throw existingError;
-
-            const existingDates = new Set((existingTransactions || []).map(tx => tx.date));
-            const transactionsToInsert = transactionDates
-              .filter(transactionDate => !existingDates.has(transactionDate))
-              .map(transactionDate => ({
-                description: automation.description,
-                amount: parseFloat(automation.amount),
-                category_id: automation.category_id,
-                type: automation.type || 'expense',
-                date: transactionDate, // Each transaction gets its respective date (not always today)
-                automation_id: automation.automation_id,
-                user_id: txUser.id,
-              }));
-
-            if (transactionsToInsert.length === 0) {
+            if (insertedCount === 0) {
               console.log(`[AUTOMATION] All ${transactionDates.length} candidate dates already exist for ${automation.description}, skipping inserts`);
             } else {
-              // Insert only the missing transactions
-              const { error: insertError } = await supabase
-                .from('transactions')
-                .insert(transactionsToInsert);
-
-              if (insertError) throw insertError;
-              
-              console.log(`[AUTOMATION] ✓ Created ${transactionsToInsert.length} transactions for ${automation.description}`);
+              console.log(`[AUTOMATION] ✓ Created ${insertedCount} transactions for ${automation.description}`);
             }
             
             // Update last_executed timestamp to today (not the last transaction date)
@@ -475,9 +495,17 @@ export function useAutomations() {
   /**
    * Delete an automation rule
    */
-  const deleteAutomation = useCallback(async (automationId) => {
+  const deleteAutomation = useCallback(async (automationId, deleteTransactions = false) => {
     setError(null);
     try {
+      if (deleteTransactions) {
+        const { error: transactionError } = await supabase
+          .from('transactions')
+          .delete()
+          .eq('automation_id', automationId);
+        if (transactionError) throw transactionError;
+      }
+
       const { error } = await supabase
         .from('automations')
         .delete()
@@ -500,6 +528,7 @@ export function useAutomations() {
     loading,
     error,
     createAutomation,
+    backfillAutomation,
     updateAutomation,
     toggleAutomationStatus,
     deleteAutomation,
