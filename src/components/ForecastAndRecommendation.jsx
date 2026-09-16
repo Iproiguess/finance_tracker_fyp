@@ -1,15 +1,27 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { formatCurrency } from '../config/constants';
+import { getEffectiveBudget } from './utils/budgetUtils';
 
-export function ForecastAndRecommendation({ simulationResult, transactions, budgets = [] }) {
-  // Filter transactions to only include those from selected categories in simulation
-  let relevantTransactions = transactions;
-  
-  if (simulationResult && simulationResult.selectedCategoryIds && simulationResult.selectedCategoryIds.length > 0) {
-    const selectedCategoryIds = new Set(simulationResult.selectedCategoryIds);
-    relevantTransactions = transactions.filter(tx => selectedCategoryIds.has(tx.category_id));
-  }
+export function ForecastAndRecommendation({ simulationResult, transactions, budgets = [], selectedBudgetIds = new Set() }) {
+  const simulationCategoryIds = simulationResult?.selectedCategoryIds || [];
+  const budgetIds = simulationResult?.selectedBudgetIds?.length > 0
+    ? new Set(simulationResult.selectedBudgetIds)
+    : selectedBudgetIds;
+  const scopedBudgets = budgetIds.size > 0
+    ? budgets.filter(budget => budgetIds.has(budget.budget_id))
+    : budgets;
+  const monthlyBudgetLimit = scopedBudgets.reduce(
+    (total, budget) => total + Number(getEffectiveBudget(budget, budgets, transactions) || 0),
+    0
+  );
+  const selectedCategoryIds = new Set(scopedBudgets.flatMap(budget => budget.category_ids || []));
+  const categoryIdsForForecast = simulationCategoryIds.length > 0
+    ? new Set(simulationCategoryIds)
+    : selectedCategoryIds;
+  const relevantTransactions = categoryIdsForForecast.size > 0
+    ? transactions.filter(tx => categoryIdsForForecast.has(tx.category_id))
+    : transactions;
 
   const months = 6;
   const now = new Date();
@@ -47,29 +59,23 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
 
   const forecastBalance = (avgMonthlyIncome - avgMonthlyExpense) * months;
   
-  let totalBudgetLimit = 0;
-  if (simulationResult && simulationResult.selectedBudgetIds && simulationResult.selectedBudgetIds.length > 0) {
-    const selectedBudgetsSet = new Set(simulationResult.selectedBudgetIds);
-    budgets
-      .filter(b => selectedBudgetsSet.has(b.budget_id))
-      .forEach(b => totalBudgetLimit += b.monthly_limit || 0);
-  }
+  const totalBudgetLimit = monthlyBudgetLimit * months;
   
   let recommendation = '';
   const forecastSpending = avgMonthlyExpense * months;
   const remainingBudget = totalBudgetLimit - forecastSpending;
   
   if (totalBudgetLimit > 0) {
-    const spendingPercentage = (avgMonthlyExpense / totalBudgetLimit) * 100;
+    const spendingPercentage = (avgMonthlyExpense / monthlyBudgetLimit) * 100;
     
     if (spendingPercentage > 100) {
-      recommendation = `Your average monthly spending (${avgMonthlyExpense.toFixed(2)}) exceeds your budget limit (${totalBudgetLimit.toFixed(2)}). Based on this trend, in 6 months you'll be ${Math.abs(remainingBudget).toFixed(2)} over budget. Consider reducing expenses significantly.`;
+      recommendation = `Your average monthly spending (${avgMonthlyExpense.toFixed(2)}) exceeds your monthly budget limit (${monthlyBudgetLimit.toFixed(2)}). Based on this trend, in 6 months you'll be ${Math.abs(remainingBudget).toFixed(2)} over budget. Consider reducing expenses significantly.`;
     } else if (spendingPercentage > 75) {
-      recommendation = `Your average monthly spending (${avgMonthlyExpense.toFixed(2)}) is at ${spendingPercentage.toFixed(0)}% of your budget (${totalBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have ${remainingBudget.toFixed(2)} remaining. Consider reducing expenses.`;
+      recommendation = `Your average monthly spending (${avgMonthlyExpense.toFixed(2)}) is at ${spendingPercentage.toFixed(0)}% of your monthly budget (${monthlyBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have ${remainingBudget.toFixed(2)} remaining. Consider reducing expenses.`;
     } else if (spendingPercentage > 50) {
-      recommendation = `Your average monthly spending (${avgMonthlyExpense.toFixed(2)}) is at ${spendingPercentage.toFixed(0)}% of your budget (${totalBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have ${remainingBudget.toFixed(2)} remaining. You're on track.`;
+      recommendation = `Your average monthly spending (${avgMonthlyExpense.toFixed(2)}) is at ${spendingPercentage.toFixed(0)}% of your monthly budget (${monthlyBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have ${remainingBudget.toFixed(2)} remaining. You're on track.`;
     } else {
-      recommendation = `Your average monthly spending (${avgMonthlyExpense.toFixed(2)}) is at ${spendingPercentage.toFixed(0)}% of your budget (${totalBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have ${remainingBudget.toFixed(2)} remaining. Great control!`;
+      recommendation = `Your average monthly spending (${avgMonthlyExpense.toFixed(2)}) is at ${spendingPercentage.toFixed(0)}% of your monthly budget (${monthlyBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have ${remainingBudget.toFixed(2)} remaining. Great control!`;
     }
   } else {
     // No budget limit set, use income comparison

@@ -67,7 +67,6 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [cameraLoading, setCameraLoading] = useState(false);
-  const [videoStateDebug, setVideoStateDebug] = useState({});
   const videoRef = useRef(null);
   const cameraContainerRef = useRef(null);
   const cameraStreamRef = useRef(null);
@@ -155,7 +154,6 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
       videoRef.current.load();
     }
 
-    setVideoStateDebug({});
     setCameraLoading(false);
     setCameraError('');
     setCameraActive(false);
@@ -176,27 +174,6 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
     };
   }, []);
 
-  // Monitor video element state when camera is active
-  useEffect(() => {
-    if (!cameraActive || !videoRef.current) return;
-
-    const video = videoRef.current;
-    const interval = setInterval(() => {
-      const state = {
-        paused: video.paused,
-        readyState: video.readyState,
-        networkState: video.networkState,
-        width: video.videoWidth,
-        height: video.videoHeight,
-        duration: video.duration
-      };
-      console.log(`[Video Monitor] paused=${state.paused}, readyState=${state.readyState}, networkState=${state.networkState}, dimensions=${state.width}x${state.height}, duration=${state.duration}`);
-      setVideoStateDebug(state);
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, [cameraActive]);
-
   const handleCameraButtonClick = () => {
     console.log('====== Camera button clicked ======');
 
@@ -207,7 +184,6 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
 
     setCameraError('');
     setCameraLoading(true);
-    setVideoStateDebug({});
     setCameraActive(true);
   };
 
@@ -644,12 +620,6 @@ export function AddTransaction({ onClose, categoryId, editingTransaction }) {
               {cameraError && <div style={styles.receiptStatusBox}>{cameraError}</div>}
               {cameraActive && (
                 <div ref={cameraContainerRef} style={styles.cameraContainer}>
-                  <div style={{ fontSize: '10px', color: '#ccc', padding: '4px', backgroundColor: '#333', borderRadius: '4px', marginBottom: '4px', fontFamily: 'monospace', maxHeight: '60px', overflow: 'auto' }}>
-                    <div>Video State Debug:</div>
-                    <div>Paused: {videoStateDebug.paused ? 'YES' : 'NO'}</div>
-                    <div>ReadyState: {videoStateDebug.readyState}</div>
-                    <div>Dimensions: {videoStateDebug.width}x{videoStateDebug.height}</div>
-                  </div>
                   <video
                     ref={videoRef}
                     autoPlay={true}

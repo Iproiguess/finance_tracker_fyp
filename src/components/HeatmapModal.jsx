@@ -62,6 +62,7 @@ export function HeatmapSection({
 }) {
   // State for multi-cell selection
   const [selectedCells, setSelectedCells] = useState([]);
+  const [allReductionPercentage, setAllReductionPercentage] = useState(20);
   
   // State for year selection
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -135,6 +136,14 @@ export function HeatmapSection({
     setSelectedCells(selectedCells.map(c => 
       c.dateStr === dateStr ? { ...c, reductionPercentage: percentage } : c
     ));
+  };
+
+  const updateAllCellReductions = (percentage) => {
+    setAllReductionPercentage(percentage);
+    setSelectedCells(selectedCells.map(cell => ({
+      ...cell,
+      reductionPercentage: percentage,
+    })));
   };
 
   // Add slider CSS styles
@@ -641,6 +650,37 @@ export function HeatmapSection({
           </div>
         );
         })}
+
+        {selectedCells.length > 0 && (
+          <div style={{
+            marginBottom: '12px',
+            padding: '12px',
+            backgroundColor: '#eef7ff',
+            borderRadius: '6px',
+            border: '1px solid #3498db',
+          }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#000', marginBottom: '6px' }}>
+              Reduce all selected cells: {allReductionPercentage}%
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={allReductionPercentage}
+              onChange={(e) => updateAllCellReductions(parseFloat(e.target.value))}
+              style={{
+                width: '100%',
+                cursor: 'pointer',
+                accentColor: '#3498db',
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#999' }}>
+              <span>0%</span>
+              <span>50%</span>
+              <span>100%</span>
+            </div>
+          </div>
+        )}
 
         {/* Aggregate Statistics */}
         {selectedCells.length > 0 && aggregateImpact && (
