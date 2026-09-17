@@ -69,13 +69,13 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
     const spendingPercentage = (avgMonthlyExpense / monthlyBudgetLimit) * 100;
     
     if (spendingPercentage > 100) {
-      recommendation = `Your average monthly spending (${avgMonthlyExpense.toFixed(2)}) exceeds your monthly budget limit (${monthlyBudgetLimit.toFixed(2)}). Based on this trend, in 6 months you'll be ${Math.abs(remainingBudget).toFixed(2)} over budget. Consider reducing expenses significantly.`;
+      recommendation = `Your average monthly expenses (${avgMonthlyExpense.toFixed(2)}) exceed your monthly budget limit (${monthlyBudgetLimit.toFixed(2)}). Based on this trend, in 6 months you'll be ${Math.abs(remainingBudget).toFixed(2)} over budget. Consider reducing expenses significantly.`;
     } else if (spendingPercentage > 75) {
-      recommendation = `Your average monthly spending (${avgMonthlyExpense.toFixed(2)}) is at ${spendingPercentage.toFixed(0)}% of your monthly budget (${monthlyBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have ${remainingBudget.toFixed(2)} remaining. Consider reducing expenses.`;
+      recommendation = `Your average monthly expenses (${avgMonthlyExpense.toFixed(2)}) are at ${spendingPercentage.toFixed(0)}% of your monthly budget (${monthlyBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have ${remainingBudget.toFixed(2)} remaining. Consider reducing expenses.`;
     } else if (spendingPercentage > 50) {
-      recommendation = `Your average monthly spending (${avgMonthlyExpense.toFixed(2)}) is at ${spendingPercentage.toFixed(0)}% of your monthly budget (${monthlyBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have ${remainingBudget.toFixed(2)} remaining. You're on track.`;
+      recommendation = `Your average monthly expenses (${avgMonthlyExpense.toFixed(2)}) are at ${spendingPercentage.toFixed(0)}% of your monthly budget (${monthlyBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have ${remainingBudget.toFixed(2)} remaining. You're on track.`;
     } else {
-      recommendation = `Your average monthly spending (${avgMonthlyExpense.toFixed(2)}) is at ${spendingPercentage.toFixed(0)}% of your monthly budget (${monthlyBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have ${remainingBudget.toFixed(2)} remaining. Great control!`;
+      recommendation = `Your average monthly expenses (${avgMonthlyExpense.toFixed(2)}) are at ${spendingPercentage.toFixed(0)}% of your monthly budget (${monthlyBudgetLimit.toFixed(2)}). Forecasted for 6 months, you'll have ${remainingBudget.toFixed(2)} remaining. Great control!`;
     }
   } else {
     // No budget limit set, use income comparison
@@ -164,11 +164,11 @@ export function ForecastAndRecommendation({ simulationResult, transactions, budg
           <h4 style={{ margin: '0 0 12px 0', fontSize: 15, fontWeight: 600, color: '#232323' }}>Impact Summary</h4>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div style={{ background: '#fff', padding: '12px', borderRadius: 6, borderLeft: '4px solid #e74c3c' }}>
-              <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 4 }}>Average Current Monthly</div>
+              <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 4 }}>Average Monthly Expenses</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#232323' }}>{impactSummary.type === 'income' ? '+' : impactSummary.type === 'expense' ? '-' : ''}{impactSummary.currentMonthly.toFixed(2)}</div>
             </div>
             <div style={{ background: '#fff', padding: '12px', borderRadius: 6, borderLeft: '4px solid #27ae60' }}>
-              <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 4 }}>Forecasted Average Monthly</div>
+              <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 4 }}>Forecasted Monthly Expenses</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#232323' }}>{impactSummary.type === 'income' ? '+' : impactSummary.type === 'expense' ? '-' : ''}{impactSummary.simulatedMonthly.toFixed(2)}</div>
             </div>
           </div>
